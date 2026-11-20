@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.api.manuals import router as manuals_router
 from app.config import get_settings
 from app.db.database import init_db
 
@@ -14,6 +15,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AI社内マニュアル検索システム", lifespan=lifespan)
+app.include_router(manuals_router)
 
 
 @app.get("/health")
