@@ -1,9 +1,19 @@
 """アプリの起動入口。"""
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from app.config import get_settings
+from app.db.database import init_db
 
-app = FastAPI(title="AI社内マニュアル検索システム")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()  # 起動時にテーブルを用意する
+    yield
+
+
+app = FastAPI(title="AI社内マニュアル検索システム", lifespan=lifespan)
 
 
 @app.get("/health")
