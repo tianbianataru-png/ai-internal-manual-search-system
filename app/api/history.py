@@ -1,0 +1,35 @@
+from fastapi import APIRouter, HTTPException, Query
+
+from app.config import get_settings
+from app.schemas.history import HistoryDetail, HistorySummary
+from app.services import history_service
+from app.services.history_service import HistoryError
+
+router = APIRouter(prefix="/api/history", tags=["history"])
+
+
+def _http(e: HistoryError) -> HTTPException:
+    return HTTPException(status_code=e.status_code, detail=str(e))
+
+
+@router.get("", response_model=list[HistorySummary])
+def list_history(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
+    """質問履歴の一覧(新しい順)。"""
+    return history_service.list_history(get_settings().default_user_id, limit, offset)
+
+
+@router.get("/{history_id}", response_model=HistoryDetail)
+def get_history(history_id: int):
+    """質問・回答・出典の詳細。"""
+    try:
+        return history_service.get_history(history_id, get_settings().default_user_id)
+    except HistoryError as e:
+        raise _http(e)
+
+
+@router.delete("/{history_id}", status_code=204)
+def delete_history(history_id: int):
+    try:
+        history_service.delete_history(history_id, get_settings().default_user_id)
+    except HistoryError as e:
+        raise _http(e)
