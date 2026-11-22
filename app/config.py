@@ -24,8 +24,9 @@ class Settings(BaseSettings):
     max_upload_mb: int = 20
     allowed_extensions: str = "pdf,docx,txt"
 
-    # 初期版は固定ユーザー。将来ログイン機能を足すときに置き換える。
-    default_user_id: int = 1
+    # ログイン
+    session_hours: int = 8
+    cookie_secure: bool = False  # HTTPSで公開するときは true にする
 
 
 @lru_cache

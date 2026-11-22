@@ -2,11 +2,11 @@ import json
 from types import SimpleNamespace
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.config import get_settings
 from app.db import database, vector_store
-from app.main import app
+from app.main import app  # noqa: F401
+from tests.helpers import make_client
 from app.services import qa_service
 from app.services.qa_service import NOT_FOUND
 
@@ -19,7 +19,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(vector_store, "_client", None)
     monkeypatch.setattr(qa_service, "embed_query", lambda q: [1.0, 0.0])
     database.init_db()
-    yield TestClient(app)
+    yield make_client()
     monkeypatch.setattr(vector_store, "_client", None)
 
 
@@ -78,11 +78,11 @@ def test_llm_says_not_found_hides_sources(client, monkeypatch):
     assert body["answer"] == NOT_FOUND and body["sources"] == []
 
 
-def test_other_users_manuals_not_used(client, monkeypatch):
-    vector_store.add_chunks(9, 2, ["他人の資料"], [[1.0, 0.0]], [{"filename": "o.txt"}])
-    calls = _fake_llm(monkeypatch, "x")
+def test_manuals_are_shared_across_users(client, monkeypatch):
+    vector_store.add_chunks(9, 2, ["共通の資料"], [[1.0, 0.0]], [{"filename": "o.txt"}])  # 別の管理者が登録
+    _fake_llm(monkeypatch, "答え")
     body = client.post("/api/ask", json={"question": "何か"}).json()
-    assert body["answer"] == NOT_FOUND and calls == []
+    assert body["sources"][0]["manual_name"] == "o.txt"
 
 
 def test_validation(client):

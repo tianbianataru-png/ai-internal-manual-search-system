@@ -59,6 +59,7 @@ def _generate_answer(question: str, hits: list[dict], client: OpenAI | None = No
 
 
 def ask(question: str, user_id: int) -> dict:
+    """user_id は履歴の保存先。検索対象のマニュアルは全社共通。"""
     question = (question or "").strip()
     if not question:
         raise QuestionError("質問を入力してください。")
@@ -67,7 +68,7 @@ def ask(question: str, user_id: int) -> dict:
 
     hits = []
     if vector_store.count() > 0:
-        found = vector_store.search(embed_query(question), user_id=user_id, top_k=TOP_K)
+        found = vector_store.search(embed_query(question), top_k=TOP_K)  # マニュアルは全員共通
         hits = [h for h in found if h["distance"] <= MAX_DISTANCE]
 
     if not hits:

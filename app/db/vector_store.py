@@ -54,13 +54,13 @@ def add_chunks(
 
 
 def search(
-    query_embedding: list[float], user_id: int, top_k: int = 5
+    query_embedding: list[float], user_id: int | None = None, top_k: int = 5
 ) -> list[dict]:
-    """質問ベクトルに近いチャンクを返す(自分のマニュアルのみ)。"""
+    """質問ベクトルに近いチャンクを返す。user_id を指定すると、その人が登録した分だけに絞る。"""
     res = get_collection().query(
         query_embeddings=[query_embedding],
         n_results=top_k,
-        where={"user_id": user_id},
+        where={"user_id": user_id} if user_id is not None else None,
     )
     return [
         {"text": doc, "metadata": meta, "distance": dist}

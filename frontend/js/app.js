@@ -9,8 +9,15 @@ function showMessage(text, isError = false) {
 }
 function clearMessage() { $("message").hidden = true; }
 
+let currentUser = null;
+const isAdmin = () => currentUser && currentUser.role === "admin";
+
 async function api(path, options) {
   const res = await fetch(path, options);
+  if (res.status === 401 && path !== "/api/auth/login") {
+    showLogin("ログインの有効期限が切れました。もう一度ログインしてください。");
+    throw new Error("ログインが必要です。");
+  }
   if (!res.ok) {
     let detail = `エラーが発生しました(${res.status})`;
     try {
@@ -52,7 +59,53 @@ document.querySelectorAll(".tab").forEach((btn) => {
     clearMessage();
     if (btn.dataset.tab === "manuals") loadManuals();
     if (btn.dataset.tab === "history") loadHistory();
+    if (btn.dataset.tab === "users") loadUsers();
   });
+});
+
+// ---- ログイン ----
+function showLogin(msg) {
+  currentUser = null;
+  $("app").hidden = true;
+  $("login-view").hidden = false;
+  const m = $("login-message");
+  m.hidden = !msg;
+  m.textContent = msg || "";
+  $("login-pass").value = "";
+}
+
+function showApp(user) {
+  currentUser = user;
+  $("login-view").hidden = true;
+  $("app").hidden = false;
+  $("who").textContent = `${user.username}(${user.role === "admin" ? "管理者" : "一般"})`;
+  document.querySelectorAll(".admin-only").forEach((e) => { e.hidden = !isAdmin(); });
+  document.querySelector('.tab[data-tab="ask"]').click(); // 最初の画面に戻す
+  $("ask-result").hidden = true;
+  $("question").value = "";
+}
+
+$("login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("login-btn");
+  btn.disabled = true;
+  try {
+    const user = await api("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: $("login-user").value, password: $("login-pass").value }),
+    });
+    showApp(user);
+  } catch (err) {
+    showLogin(err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("logout-btn").addEventListener("click", async () => {
+  try { await api("/api/auth/logout", { method: "POST" }); } catch (_) { /* 失敗してもログイン画面へ */ }
+  showLogin();
 });
 
 // ---- 質問 ----
@@ -93,14 +146,16 @@ async function loadManuals() {
       const st = el("td", m.status === "error" ? "status-error" : "",
         m.status === "ready" ? `登録済み(${m.chunk_count}件に分割)` : `失敗: ${m.error_message || ""}`);
       tr.append(st, el("td", "", m.created_at));
-      const del = el("button", "danger", "削除");
-      del.addEventListener("click", async () => {
-        if (!confirm(`「${m.filename}」を削除しますか?`)) return;
-        try { await api(`/api/manuals/${m.id}`, { method: "DELETE" }); loadManuals(); }
-        catch (err) { showMessage(err.message, true); }
-      });
       const td = el("td");
-      td.append(del);
+      if (isAdmin()) {
+        const del = el("button", "danger", "削除");
+        del.addEventListener("click", async () => {
+          if (!confirm(`「${m.filename}」を削除しますか?`)) return;
+          try { await api(`/api/manuals/${m.id}`, { method: "DELETE" }); loadManuals(); }
+          catch (err) { showMessage(err.message, true); }
+        });
+        td.append(del);
+      }
       tr.append(td);
       tbody.append(tr);
     }
@@ -167,3 +222,66 @@ async function showHistory(id) {
     $("history-detail").scrollIntoView({ behavior: "smooth" });
   } catch (err) { showMessage(err.message, true); }
 }
+
+// ---- ユーザー管理(管理者のみ) ----
+async function loadUsers() {
+  try {
+    const list = await api("/api/users");
+    const tbody = $("user-list");
+    tbody.replaceChildren();
+    for (const u of list) {
+      const tr = el("tr");
+      tr.append(el("td", "", u.username), el("td", "", u.role === "admin" ? "管理者" : "一般"), el("td", "", u.created_at));
+      const td = el("td");
+      const pw = el("button", "danger plain", "パスワード変更");
+      pw.addEventListener("click", async () => {
+        const p = prompt(`「${u.username}」の新しいパスワード(8文字以上)`);
+        if (!p) return;
+        try {
+          await api(`/api/users/${u.id}/password`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password: p }),
+          });
+          showMessage("パスワードを変更しました。");
+        } catch (err) { showMessage(err.message, true); }
+      });
+      td.append(pw, " ");
+      if (u.id !== currentUser.id) {
+        const del = el("button", "danger", "削除");
+        del.addEventListener("click", async () => {
+          if (!confirm(`「${u.username}」と、その質問履歴を削除しますか?`)) return;
+          try { await api(`/api/users/${u.id}`, { method: "DELETE" }); loadUsers(); }
+          catch (err) { showMessage(err.message, true); }
+        });
+        td.append(del);
+      }
+      tr.append(td);
+      tbody.append(tr);
+    }
+  } catch (err) { showMessage(err.message, true); }
+}
+
+$("user-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  clearMessage();
+  try {
+    await api("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: $("new-user").value, password: $("new-pass").value, role: $("new-role").value }),
+    });
+    $("user-form").reset();
+    showMessage("ユーザーを追加しました。");
+    loadUsers();
+  } catch (err) { showMessage(err.message, true); }
+});
+
+// ---- 起動時: ログイン状態を確認 ----
+(async () => {
+  try {
+    const res = await fetch("/api/auth/me");
+    if (res.ok) showApp(await res.json());
+    else showLogin();
+  } catch (_) { showLogin("サーバーに接続できません。"); }
+})();

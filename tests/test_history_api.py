@@ -1,18 +1,18 @@
 import json
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.config import get_settings
 from app.db import database
-from app.main import app
+from app.main import app  # noqa: F401
+from tests.helpers import make_client
 
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(get_settings(), "sqlite_path", tmp_path / "t.db")
     database.init_db()
-    return TestClient(app)
+    return make_client()
 
 
 def _insert(question, answer="答え", sources=None, user_id=1, raw_sources=None):

@@ -41,7 +41,7 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
 
 
 def register_manual(filename: str, data: bytes, user_id: int) -> dict:
-    """マニュアルを登録する。解析に失敗した場合も記録を残し、status='error' で返す。"""
+    """マニュアルを登録する(user_id は登録した管理者)。解析に失敗した場合も記録を残し、status='error' で返す。"""
     ext = validate_upload(filename, data)
     s = get_settings()
     s.upload_dir.mkdir(parents=True, exist_ok=True)
@@ -83,19 +83,18 @@ def register_manual(filename: str, data: bytes, user_id: int) -> dict:
     return _row_to_dict(row)
 
 
-def list_manuals(user_id: int) -> list[dict]:
+def list_manuals() -> list[dict]:
+    """マニュアルは全社共通。全員が閲覧でき、登録・削除は管理者だけ(API側で制限)。"""
     with get_connection() as conn:
-        rows = conn.execute(
-            "SELECT * FROM manuals WHERE user_id=? ORDER BY id DESC", (user_id,)
-        ).fetchall()
+        rows = conn.execute("SELECT * FROM manuals ORDER BY id DESC").fetchall()
     return [_row_to_dict(r) for r in rows]
 
 
-def delete_manual(manual_id: int, user_id: int) -> None:
+def delete_manual(manual_id: int) -> None:
     """ファイル・検索データ・DB記録をすべて削除する。"""
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT stored_path FROM manuals WHERE id=? AND user_id=?", (manual_id, user_id)
+            "SELECT stored_path FROM manuals WHERE id=?", (manual_id,)
         ).fetchone()
         if row is None:
             raise ManualError("マニュアルが見つかりません。", 404)

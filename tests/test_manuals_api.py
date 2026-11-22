@@ -1,9 +1,9 @@
 import pytest
-from fastapi.testclient import TestClient
 
 from app.config import get_settings
 from app.db import database, vector_store
-from app.main import app
+from app.main import app  # noqa: F401
+from tests.helpers import make_client
 from app.services import manual_service
 from app.services.embedding import EmbeddingError
 
@@ -17,7 +17,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(vector_store, "_client", None)
     monkeypatch.setattr(manual_service, "embed_texts", lambda texts: [[1.0, 0.0] for _ in texts])
     database.init_db()
-    yield TestClient(app)
+    yield make_client()
     monkeypatch.setattr(vector_store, "_client", None)
 
 
