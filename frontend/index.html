@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI社内マニュアル検索システム</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header>
+    <h1>AI社内マニュアル検索システム</h1>
+    <nav>
+      <button class="tab active" data-tab="ask">質問する</button>
+      <button class="tab" data-tab="manuals">マニュアル管理</button>
+      <button class="tab" data-tab="history">質問履歴</button>
+    </nav>
+  </header>
+
+  <main>
+    <div id="message" class="message" hidden></div>
+
+    <section id="tab-ask" class="panel">
+      <form id="ask-form">
+        <textarea id="question" rows="3" placeholder="例: 有給休暇の申請方法を教えてください" required></textarea>
+        <button type="submit" id="ask-btn">質問する</button>
+      </form>
+      <div id="ask-result" hidden>
+        <h2>回答</h2>
+        <div id="answer" class="answer"></div>
+        <h3>出典</h3>
+        <ul id="sources" class="sources"></ul>
+      </div>
+    </section>
+
+    <section id="tab-manuals" class="panel" hidden>
+      <form id="upload-form">
+        <input type="file" id="file" accept=".pdf,.docx,.txt" required>
+        <button type="submit" id="upload-btn">登録する</button>
+      </form>
+      <p class="hint">PDF / Word(.docx) / テキスト(.txt)に対応しています。</p>
+      <table>
+        <thead><tr><th>ファイル名</th><th>種類</th><th>サイズ</th><th>状態</th><th>登録日時</th><th></th></tr></thead>
+        <tbody id="manual-list"></tbody>
+      </table>
+      <p id="manual-empty" class="hint" hidden>登録されたマニュアルはありません。</p>
+    </section>
+
+    <section id="tab-history" class="panel" hidden>
+      <ul id="history-list" class="history"></ul>
+      <p id="history-empty" class="hint" hidden>質問履歴はありません。</p>
+      <div id="history-detail" hidden>
+        <h2>詳細</h2>
+        <p class="meta" id="detail-date"></p>
+        <h3>質問</h3>
+        <div id="detail-question" class="answer"></div>
+        <h3>回答</h3>
+        <div id="detail-answer" class="answer"></div>
+        <h3>出典</h3>
+        <ul id="detail-sources" class="sources"></ul>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -26,10 +26,11 @@ copy .env.example .env
 ## 起動
 
 ```powershell
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8001
 ```
 
-ブラウザで http://127.0.0.1:8000/health を開き、`"status":"ok"` が出れば成功です。
+ブラウザで http://127.0.0.1:8001/health を開き、`"status":"ok"` が出れば成功です。
+画面は http://127.0.0.1:8001/ から使えます。
 
 ## テスト
 
