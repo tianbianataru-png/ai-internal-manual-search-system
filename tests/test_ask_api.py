@@ -48,7 +48,7 @@ def test_answer_with_sources_and_history(client, monkeypatch):
     body = r.json()
     assert body["answer"] == "入社6か月後から取得できます。"
     assert body["sources"] == [
-        {"manual_name": "rule.pdf", "page": 3, "text": "有給休暇は入社6か月後から。"}
+        {"manual_name": "rule.pdf", "page": 3, "text": "有給休暇は入社6か月後から。", "ref": 1}
     ]
     assert len(calls) == 1
     with database.get_connection() as c:
@@ -113,3 +113,31 @@ def test_generate_answer_builds_prompt_with_context():
     assert qa_service._generate_answer("質問?", hits, fake) == "答え"
     user = captured["messages"][1]["content"]
     assert "a.pdf p.2" in user and "本文" in user and "質問?" in user
+
+
+def test_only_cited_sources_returned(client, monkeypatch):
+    vector_store.add_chunks(
+        1, 1, ["有給は6か月後。", "通勤手当は上限あり。"], [[1.0, 0.0], [0.9, 0.1]],
+        [{"filename": "a.pdf", "page": 1}, {"filename": "b.pdf", "page": 2}],
+    )
+    _fake_llm(monkeypatch, "有給は6か月後です。[2]")
+    body = client.post("/api/ask", json={"question": "何か"}).json()
+    assert len(body["sources"]) == 1 and body["sources"][0]["ref"] == 2
+    assert body["sources"][0]["manual_name"] == "b.pdf"
+
+
+def test_out_of_range_citation_falls_back_to_all_hits(client, monkeypatch):
+    _add_manual_chunk()
+    _fake_llm(monkeypatch, "答えです。[9]")
+    body = client.post("/api/ask", json={"question": "何か"}).json()
+    assert [s["ref"] for s in body["sources"]] == [1]
+
+
+def test_search_limited_to_one_manual(client, monkeypatch):
+    vector_store.add_chunks(1, 1, ["A資料"], [[1.0, 0.0]], [{"filename": "a.txt"}])
+    vector_store.add_chunks(2, 1, ["B資料"], [[1.0, 0.0]], [{"filename": "b.txt"}])
+    _fake_llm(monkeypatch, "答え")
+    body = client.post("/api/ask", json={"question": "何か", "manual_id": 2}).json()
+    assert [s["manual_name"] for s in body["sources"]] == ["b.txt"]
+    none = client.post("/api/ask", json={"question": "何か", "manual_id": 99}).json()
+    assert none["answer"] == NOT_FOUND

@@ -46,7 +46,7 @@ def test_detail_includes_sources(client):
     hid = _insert("有給は?", "6か月後です。", src)
     body = client.get(f"/api/history/{hid}").json()
     assert body["question"] == "有給は?" and body["answer"] == "6か月後です。"
-    assert body["sources"] == src
+    assert body["sources"] == [{**src[0], "ref": None}]  # 古い履歴には番号がない
 
 
 def test_detail_survives_broken_sources_json(client):

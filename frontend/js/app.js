@@ -41,7 +41,8 @@ function renderSources(ul, sources) {
   if (!sources.length) { ul.append(el("li", "", "出典はありません。")); return; }
   for (const s of sources) {
     const li = el("li");
-    li.append(el("div", "src-name", s.page != null ? `${s.manual_name}(p.${s.page})` : s.manual_name));
+    const label = s.page != null ? `${s.manual_name}(p.${s.page})` : s.manual_name;
+    li.append(el("div", "src-name", s.ref != null ? `[${s.ref}] ${label}` : label));
     li.append(el("div", "src-text", s.text));
     ul.append(li);
   }
@@ -57,11 +58,24 @@ document.querySelectorAll(".tab").forEach((btn) => {
     document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b === btn));
     document.querySelectorAll(".panel").forEach((p) => { p.hidden = p.id !== `tab-${btn.dataset.tab}`; });
     clearMessage();
+    if (btn.dataset.tab === "ask") loadScope();
     if (btn.dataset.tab === "manuals") loadManuals();
     if (btn.dataset.tab === "history") loadHistory();
     if (btn.dataset.tab === "users") loadUsers();
   });
 });
+
+// ---- 検索対象(マニュアル選択) ----
+async function loadScope() {
+  const sel = $("scope");
+  const keep = sel.value;
+  try {
+    const list = await api("/api/manuals");
+    sel.replaceChildren(new Option("すべてのマニュアル", ""));
+    for (const m of list.filter((x) => x.status === "ready")) sel.append(new Option(m.filename, String(m.id)));
+    sel.value = [...sel.options].some((o) => o.value === keep) ? keep : "";
+  } catch (_) { /* 取得できなくても質問自体は可能 */ }
+}
 
 // ---- ログイン ----
 function showLogin(msg) {
@@ -119,7 +133,10 @@ $("ask-form").addEventListener("submit", async (e) => {
     const r = await api("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: $("question").value }),
+      body: JSON.stringify({
+        question: $("question").value,
+        manual_id: $("scope").value ? Number($("scope").value) : null,
+      }),
     });
     $("answer").textContent = r.answer;
     renderSources($("sources"), r.sources);
