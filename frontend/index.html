@@ -29,6 +29,7 @@
         <button class="tab" data-tab="history">質問履歴</button>
         <button class="tab admin-only" data-tab="users" hidden>ユーザー管理</button>
         <button class="tab admin-only" data-tab="feedback" hidden>回答の評価</button>
+        <button class="tab admin-only" data-tab="audit" hidden>操作ログ</button>
         <button class="tab" data-tab="account">パスワード変更</button>
       </nav>
     </header>
@@ -94,6 +95,16 @@
         <h3>「役に立たなかった」と評価された回答(新しい順)</h3>
         <ul id="fb-bad" class="history"></ul>
         <p id="fb-empty" class="hint" hidden>「役に立たなかった」と評価された回答はありません。</p>
+      </section>
+
+      <section id="tab-audit" class="panel" hidden>
+        <label class="scope">操作の種類: <select id="audit-action"><option value="">すべて</option></select></label>
+        <table>
+          <thead><tr><th>日時</th><th>操作</th><th>ユーザー</th><th>内容</th><th>IPアドレス</th></tr></thead>
+          <tbody id="audit-list"></tbody>
+        </table>
+        <p id="audit-empty" class="hint" hidden>ログはありません。</p>
+        <button id="audit-more" type="button" class="more" hidden>さらに表示</button>
       </section>
 
       <section id="tab-users" class="panel" hidden>

@@ -85,6 +85,7 @@ document.querySelectorAll(".tab").forEach((btn) => {
     if (btn.dataset.tab === "history") loadHistory();
     if (btn.dataset.tab === "users") loadUsers();
     if (btn.dataset.tab === "feedback") loadFeedback();
+    if (btn.dataset.tab === "audit") loadAudit(true);
   });
 });
 
@@ -301,6 +302,44 @@ async function loadFeedback() {
       li.append(main);
       ul.append(li);
     }
+  } catch (err) { showMessage(err.message, true); }
+}
+
+// ---- 操作ログ(管理者のみ) ----
+const AUDIT_LABELS = {
+  login: "ログイン", login_failed: "ログイン失敗", logout: "ログアウト", password_change: "パスワード変更(本人)",
+  user_create: "ユーザー追加", password_reset: "パスワードリセット(管理者)", user_delete: "ユーザー削除",
+  manual_upload: "マニュアル登録", manual_delete: "マニュアル削除",
+};
+const AUDIT_PAGE = 100;
+let auditOffset = 0;
+
+for (const [value, label] of Object.entries(AUDIT_LABELS)) $("audit-action").append(new Option(label, value));
+$("audit-action").addEventListener("change", () => loadAudit(true));
+$("audit-more").addEventListener("click", () => loadAudit(false));
+
+async function loadAudit(reset) {
+  if (reset) { auditOffset = 0; $("audit-list").replaceChildren(); }
+  try {
+    const action = $("audit-action").value;
+    const q = new URLSearchParams({ limit: AUDIT_PAGE, offset: auditOffset });
+    if (action) q.set("action", action);
+    const rows = await api(`/api/audit?${q}`);
+    const tbody = $("audit-list");
+    for (const r of rows) {
+      const tr = el("tr");
+      tr.append(
+        el("td", "", r.created_at),
+        el("td", r.action === "login_failed" ? "audit-failed" : "", AUDIT_LABELS[r.action] || r.action),
+        el("td", "", r.username),
+        el("td", "", r.detail),
+        el("td", "", r.ip),
+      );
+      tbody.append(tr);
+    }
+    auditOffset += rows.length;
+    $("audit-empty").hidden = auditOffset > 0;
+    $("audit-more").hidden = rows.length < AUDIT_PAGE;
   } catch (err) { showMessage(err.message, true); }
 }
 

@@ -55,6 +55,8 @@ th, td { text-align: left; padding: 8px; border-bottom: 1px solid #e3e3e3; }
 .badge.good { background: #e6f4ea; color: #1b6a33; }
 .badge.bad { background: #fde8e8; color: #a11; }
 .clamp { white-space: pre-wrap; max-height: 6em; overflow: auto; margin-top: 4px; }
+.more { margin-top: 12px; padding: 6px 16px; border: 1px solid #bbb; border-radius: 6px; background: #fff; cursor: pointer; }
+.audit-failed { color: #a11; font-weight: bold; }
 .stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
 .stats .stat { background: #f0f5ff; border-radius: 8px; padding: 10px 16px; min-width: 110px; }
 .stats .stat b { display: block; font-size: 22px; }

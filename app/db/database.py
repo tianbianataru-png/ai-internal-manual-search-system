@@ -44,6 +44,18 @@ CREATE TABLE IF NOT EXISTS chat_history (
     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_chat_user ON chat_history(user_id, created_at);
+
+-- 操作ログ。ユーザーが削除されても残すため、user_id には外部キーを付けず username も文字列で保存する
+CREATE TABLE IF NOT EXISTS audit_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER,
+    username   TEXT NOT NULL DEFAULT '',
+    action     TEXT NOT NULL,
+    detail     TEXT NOT NULL DEFAULT '',
+    ip         TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_log(action, id);
 """
 
 
