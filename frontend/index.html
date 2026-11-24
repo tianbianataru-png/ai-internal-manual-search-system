@@ -28,6 +28,7 @@
         <button class="tab" data-tab="manuals">マニュアル</button>
         <button class="tab" data-tab="history">質問履歴</button>
         <button class="tab admin-only" data-tab="users" hidden>ユーザー管理</button>
+        <button class="tab" data-tab="account">パスワード変更</button>
       </nav>
     </header>
 
@@ -74,6 +75,15 @@
           <h3>出典</h3>
           <ul id="detail-sources" class="sources"></ul>
         </div>
+      </section>
+
+      <section id="tab-account" class="panel" hidden>
+        <form id="password-form" class="login-like">
+          <label>現在のパスワード <input id="cur-pass" type="password" autocomplete="current-password" required></label>
+          <label>新しいパスワード(8文字以上) <input id="new-pass1" type="password" autocomplete="new-password" required minlength="8"></label>
+          <label>新しいパスワード(確認) <input id="new-pass2" type="password" autocomplete="new-password" required minlength="8"></label>
+          <button type="submit">変更する</button>
+        </form>
       </section>
 
       <section id="tab-users" class="panel" hidden>

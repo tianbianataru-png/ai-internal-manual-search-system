@@ -109,6 +109,42 @@ def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def _new_session(conn: sqlite3.Connection, user_id: int) -> str:
+    token = secrets.token_urlsafe(32)
+    expires = int(time.time()) + get_settings().session_hours * 3600
+    conn.execute("DELETE FROM sessions WHERE expires_at < ?", (int(time.time()),))  # 期限切れの掃除
+    conn.execute(
+        "INSERT INTO sessions(token_hash, user_id, expires_at) VALUES (?,?,?)",
+        (_token_hash(token), user_id, expires),
+    )
+    return token
+
+
+def change_own_password(user_id: int, current: str, new: str) -> str:
+    """自分のパスワードを変更する。現在のパスワードが必要。
+
+    他の端末のログインはすべて無効になり、今の端末用の新しいセッショントークンを返す。
+    """
+    _check_password_rule(new or "")
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    if row is None:
+        raise AuthError("ユーザーが見つかりません。", 404)
+    key = row["username"].lower()
+    now = time.time()
+    recent = [t for t in _failures.get(key, []) if now - t < WINDOW]
+    if len(recent) >= MAX_FAILURES:
+        raise AuthError("失敗が続いたため、しばらくしてからお試しください。", 429)
+    if not verify_password(current or "", row["password_hash"]):
+        _failures[key] = recent + [now]
+        raise AuthError("現在のパスワードが違います。", 400)
+    _failures.pop(key, None)
+    with get_connection() as conn:
+        conn.execute("UPDATE users SET password_hash=? WHERE id=?", (hash_password(new), user_id))
+        conn.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
+        return _new_session(conn, user_id)
+
+
 def login(username: str, password: str) -> tuple[str, dict]:
     """成功すると (セッショントークン, ユーザー) を返す。"""
     key = (username or "").strip().lower()
@@ -126,14 +162,8 @@ def login(username: str, password: str) -> tuple[str, dict]:
         raise AuthError("ユーザー名またはパスワードが違います。", 401)
     _failures.pop(key, None)
 
-    token = secrets.token_urlsafe(32)
-    expires = int(now) + get_settings().session_hours * 3600
     with get_connection() as conn:
-        conn.execute("DELETE FROM sessions WHERE expires_at < ?", (int(now),))  # 期限切れの掃除
-        conn.execute(
-            "INSERT INTO sessions(token_hash, user_id, expires_at) VALUES (?,?,?)",
-            (_token_hash(token), row["id"], expires),
-        )
+        token = _new_session(conn, row["id"])
     return token, _public(row)
 
 

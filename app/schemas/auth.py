@@ -19,5 +19,10 @@ class UserCreate(BaseModel):
     role: str = "user"
 
 
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: str
+
+
 class PasswordIn(BaseModel):
     password: str

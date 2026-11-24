@@ -294,6 +294,25 @@ $("user-form").addEventListener("submit", async (e) => {
   } catch (err) { showMessage(err.message, true); }
 });
 
+// ---- 自分のパスワード変更 ----
+$("password-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  clearMessage();
+  if ($("new-pass1").value !== $("new-pass2").value) {
+    showMessage("新しいパスワードが一致しません。", true);
+    return;
+  }
+  try {
+    await api("/api/auth/password", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ current_password: $("cur-pass").value, new_password: $("new-pass1").value }),
+    });
+    $("password-form").reset();
+    showMessage("パスワードを変更しました。他の端末ではログアウトされます。");
+  } catch (err) { showMessage(err.message, true); }
+});
+
 // ---- 起動時: ログイン状態を確認 ----
 (async () => {
   try {

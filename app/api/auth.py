@@ -2,20 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from app.api.deps import COOKIE_NAME, get_current_user
 from app.config import get_settings
-from app.schemas.auth import LoginIn, UserOut
+from app.schemas.auth import ChangePasswordIn, LoginIn, UserOut
 from app.services import auth_service
 from app.services.auth_service import AuthError
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-@router.post("/login", response_model=UserOut)
-def login(body: LoginIn, response: Response):
+def _set_session_cookie(response: Response, token: str) -> None:
     s = get_settings()
-    try:
-        token, user = auth_service.login(body.username, body.password)
-    except AuthError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e))
     response.set_cookie(
         COOKIE_NAME,
         token,
@@ -24,6 +19,15 @@ def login(body: LoginIn, response: Response):
         samesite="lax",  # 他サイトからの送信ではCookieを送らない(CSRF対策)
         secure=s.cookie_secure,
     )
+
+
+@router.post("/login", response_model=UserOut)
+def login(body: LoginIn, response: Response):
+    try:
+        token, user = auth_service.login(body.username, body.password)
+    except AuthError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    _set_session_cookie(response, token)
     return user
 
 
@@ -36,3 +40,13 @@ def logout(request: Request, response: Response):
 @router.get("/me", response_model=UserOut)
 def me(user: dict = Depends(get_current_user)):
     return user
+
+
+@router.put("/password", status_code=204)
+def change_password(body: ChangePasswordIn, response: Response, user: dict = Depends(get_current_user)):
+    """自分のパスワードを変更する。この端末はログインしたまま、他の端末はログアウトされる。"""
+    try:
+        token = auth_service.change_own_password(user["id"], body.current_password, body.new_password)
+    except AuthError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    _set_session_cookie(response, token)

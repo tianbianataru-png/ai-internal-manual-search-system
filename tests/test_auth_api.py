@@ -138,3 +138,38 @@ def test_admin_cannot_delete_self(env):
     me = admin.get("/api/auth/me").json()
     assert admin.delete(f"/api/users/{me['id']}").status_code == 400
     assert len(admin.get("/api/users").json()) == 1
+
+
+def test_change_own_password(env):
+    me = make_client("taro", "user")
+    other = TestClient(app)  # 別の端末
+    other.post("/api/auth/login", json={"username": "taro", "password": PASSWORD})
+
+    r = me.put("/api/auth/password", json={"current_password": PASSWORD, "new_password": "brand-new-pass"})
+    assert r.status_code == 204
+    assert me.get("/api/auth/me").status_code == 200  # この端末はログインしたまま
+    assert other.get("/api/auth/me").status_code == 401  # 他の端末はログアウト
+    fresh = TestClient(app)
+    assert fresh.post("/api/auth/login", json={"username": "taro", "password": PASSWORD}).status_code == 401
+    assert fresh.post("/api/auth/login", json={"username": "taro", "password": "brand-new-pass"}).status_code == 200
+
+
+def test_change_own_password_validation(env):
+    me = make_client("taro", "user")
+    wrong = me.put("/api/auth/password", json={"current_password": "wrong-pass-1", "new_password": "brand-new-pass"})
+    assert wrong.status_code == 400
+    short = me.put("/api/auth/password", json={"current_password": PASSWORD, "new_password": "short"})
+    assert short.status_code == 400
+    assert TestClient(app).put(
+        "/api/auth/password", json={"current_password": PASSWORD, "new_password": "brand-new-pass"}
+    ).status_code == 401
+    # 変更されていない
+    assert TestClient(app).post("/api/auth/login", json={"username": "taro", "password": PASSWORD}).status_code == 200
+
+
+def test_change_password_throttled(env):
+    me = make_client("taro", "user")
+    for _ in range(auth_service.MAX_FAILURES):
+        assert me.put("/api/auth/password", json={"current_password": "wrong-pass-1", "new_password": "brand-new-pass"}).status_code == 400
+    assert me.put("/api/auth/password", json={"current_password": PASSWORD, "new_password": "brand-new-pass"}).status_code == 429
+    auth_service._failures.clear()
