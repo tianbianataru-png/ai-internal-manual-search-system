@@ -47,3 +47,14 @@ th, td { text-align: left; padding: 8px; border-bottom: 1px solid #e3e3e3; }
 .history li { display: flex; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
 .history .h-main { flex: 1; min-width: 0; }
 .history .h-q { font-weight: bold; }
+.rating { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 14px; }
+.rating button { background: #fff; color: #333; border: 1px solid #bbb; border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+.rating button.on.good { background: #e6f4ea; border-color: #2a8a46; color: #1b6a33; font-weight: bold; }
+.rating button.on.bad { background: #fde8e8; border-color: #c33; color: #a11; font-weight: bold; }
+.badge { font-size: 12px; padding: 1px 8px; border-radius: 10px; margin-left: 6px; }
+.badge.good { background: #e6f4ea; color: #1b6a33; }
+.badge.bad { background: #fde8e8; color: #a11; }
+.clamp { white-space: pre-wrap; max-height: 6em; overflow: auto; margin-top: 4px; }
+.stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.stats .stat { background: #f0f5ff; border-radius: 8px; padding: 10px 16px; min-width: 110px; }
+.stats .stat b { display: block; font-size: 22px; }

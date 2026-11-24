@@ -48,6 +48,28 @@ function renderSources(ul, sources) {
   }
 }
 
+// 回答への評価ボタン。同じボタンをもう一度押すと評価を取り消す。
+function renderRating(box, historyId, current, onChange) {
+  box.replaceChildren(el("span", "", "この回答は役に立ちましたか?"));
+  for (const [value, label] of [["good", "役に立った"], ["bad", "役に立たなかった"]]) {
+    const b = el("button", `${value}${current === value ? " on" : ""}`, label);
+    b.type = "button";
+    b.addEventListener("click", async () => {
+      const next = current === value ? null : value;
+      try {
+        await api(`/api/history/${historyId}/rating`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rating: next }),
+        });
+        renderRating(box, historyId, next, onChange);
+        if (onChange) onChange(next);
+      } catch (err) { showMessage(err.message, true); }
+    });
+    box.append(b);
+  }
+}
+
 function formatSize(n) {
   return n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
@@ -62,6 +84,7 @@ document.querySelectorAll(".tab").forEach((btn) => {
     if (btn.dataset.tab === "manuals") loadManuals();
     if (btn.dataset.tab === "history") loadHistory();
     if (btn.dataset.tab === "users") loadUsers();
+    if (btn.dataset.tab === "feedback") loadFeedback();
   });
 });
 
@@ -140,6 +163,7 @@ $("ask-form").addEventListener("submit", async (e) => {
     });
     $("answer").textContent = r.answer;
     renderSources($("sources"), r.sources);
+    renderRating($("ask-rating"), r.id, null);
     $("ask-result").hidden = false;
   } catch (err) {
     $("ask-result").hidden = true;
@@ -214,7 +238,9 @@ async function loadHistory() {
       const main = el("div", "h-main");
       const q = el("button", "link h-q", h.question);
       q.addEventListener("click", () => showHistory(h.id));
-      main.append(q, el("div", "meta", `${h.created_at}・出典${h.source_count}件`));
+      const meta = el("div", "meta", `${h.created_at}・出典${h.source_count}件`);
+      if (h.rating) meta.append(el("span", `badge ${h.rating}`, h.rating === "good" ? "役に立った" : "役に立たなかった"));
+      main.append(q, meta);
       const del = el("button", "danger", "削除");
       del.addEventListener("click", async () => {
         if (!confirm("この履歴を削除しますか?")) return;
@@ -227,6 +253,13 @@ async function loadHistory() {
   } catch (err) { showMessage(err.message, true); }
 }
 
+// 評価を変えたあと、詳細は開いたまま一覧のバッジだけ更新する。
+async function loadHistoryKeepDetail() {
+  const open = !$("history-detail").hidden;
+  await loadHistory();
+  $("history-detail").hidden = !open;
+}
+
 async function showHistory(id) {
   clearMessage();
   try {
@@ -235,8 +268,39 @@ async function showHistory(id) {
     $("detail-question").textContent = d.question;
     $("detail-answer").textContent = d.answer;
     renderSources($("detail-sources"), d.sources);
+    renderRating($("detail-rating"), d.id, d.rating, loadHistoryKeepDetail);
     $("history-detail").hidden = false;
     $("history-detail").scrollIntoView({ behavior: "smooth" });
+  } catch (err) { showMessage(err.message, true); }
+}
+
+// ---- 回答の評価の集計(管理者のみ) ----
+async function loadFeedback() {
+  try {
+    const s = await api("/api/feedback/summary");
+    const stats = $("fb-stats");
+    stats.replaceChildren();
+    const rated = s.good + s.bad;
+    const items = [
+      ["回答の総数", s.total], ["役に立った", s.good], ["役に立たなかった", s.bad], ["未評価", s.unrated],
+      ["満足率", rated ? `${Math.round((s.good / rated) * 100)}%` : "-"],
+    ];
+    for (const [label, value] of items) {
+      const box = el("div", "stat");
+      box.append(el("b", "", String(value)), el("span", "meta", label));
+      stats.append(box);
+    }
+    const ul = $("fb-bad");
+    ul.replaceChildren();
+    $("fb-empty").hidden = s.recent_bad.length > 0;
+    for (const b of s.recent_bad) {
+      const li = el("li");
+      const main = el("div", "h-main");
+      main.append(el("div", "h-q", b.question), el("div", "meta", `${b.username}・${b.created_at}`),
+        el("div", "meta clamp", b.answer));
+      li.append(main);
+      ul.append(li);
+    }
   } catch (err) { showMessage(err.message, true); }
 }
 

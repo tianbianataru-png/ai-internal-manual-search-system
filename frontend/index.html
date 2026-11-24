@@ -28,6 +28,7 @@
         <button class="tab" data-tab="manuals">マニュアル</button>
         <button class="tab" data-tab="history">質問履歴</button>
         <button class="tab admin-only" data-tab="users" hidden>ユーザー管理</button>
+        <button class="tab admin-only" data-tab="feedback" hidden>回答の評価</button>
         <button class="tab" data-tab="account">パスワード変更</button>
       </nav>
     </header>
@@ -44,6 +45,7 @@
         <div id="ask-result" hidden>
           <h2>回答</h2>
           <div id="answer" class="answer"></div>
+          <div id="ask-rating" class="rating"></div>
           <h3>出典</h3>
           <ul id="sources" class="sources"></ul>
         </div>
@@ -72,6 +74,7 @@
           <div id="detail-question" class="answer"></div>
           <h3>回答</h3>
           <div id="detail-answer" class="answer"></div>
+          <div id="detail-rating" class="rating"></div>
           <h3>出典</h3>
           <ul id="detail-sources" class="sources"></ul>
         </div>
@@ -84,6 +87,13 @@
           <label>新しいパスワード(確認) <input id="new-pass2" type="password" autocomplete="new-password" required minlength="8"></label>
           <button type="submit">変更する</button>
         </form>
+      </section>
+
+      <section id="tab-feedback" class="panel" hidden>
+        <div id="fb-stats" class="stats"></div>
+        <h3>「役に立たなかった」と評価された回答(新しい順)</h3>
+        <ul id="fb-bad" class="history"></ul>
+        <p id="fb-empty" class="hint" hidden>「役に立たなかった」と評価された回答はありません。</p>
       </section>
 
       <section id="tab-users" class="panel" hidden>

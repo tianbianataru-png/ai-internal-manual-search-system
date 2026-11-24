@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.ask import router as ask_router
 from app.api.auth import router as auth_router
+from app.api.feedback import router as feedback_router
 from app.api.history import router as history_router
 from app.api.manuals import router as manuals_router
 from app.api.users import router as users_router
@@ -30,6 +31,7 @@ app.include_router(users_router)
 app.include_router(manuals_router)
 app.include_router(ask_router)
 app.include_router(history_router)
+app.include_router(feedback_router)
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
 

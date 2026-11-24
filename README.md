@@ -83,6 +83,8 @@ pytest
 | GET | /api/history | 質問履歴の一覧 |
 | GET | /api/history/{id} | 質問履歴の詳細 |
 | DELETE | /api/history/{id} | 質問履歴の削除 |
+| PUT | /api/history/{id}/rating | 回答の評価(`good` / `bad` / `null`で取り消し。本人のみ) |
+| GET | /api/feedback/summary | 評価の集計と「役に立たなかった」回答の一覧(管理者) |
 
 ## 開発状況
 - [x] ステップ1: 環境構築

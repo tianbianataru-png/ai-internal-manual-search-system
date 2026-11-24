@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS chat_history (
     question   TEXT NOT NULL,
     answer     TEXT NOT NULL,
     sources    TEXT NOT NULL DEFAULT '[]',  -- 出典情報(JSON文字列)
+    rating     INTEGER,                     -- 回答の評価: 1=役に立った / -1=役に立たなかった / NULL=未評価
     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_chat_user ON chat_history(user_id, created_at);
@@ -68,3 +69,7 @@ def init_db() -> None:
     """テーブルがなければ作る(何度呼んでも安全)。"""
     with get_connection() as conn:
         conn.executescript(SCHEMA)
+        # 以前のバージョンで作られたDBには rating 列がないので追加する
+        cols = [r["name"] for r in conn.execute("PRAGMA table_info(chat_history)")]
+        if "rating" not in cols:
+            conn.execute("ALTER TABLE chat_history ADD COLUMN rating INTEGER")
