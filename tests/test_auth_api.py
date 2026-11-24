@@ -173,3 +173,41 @@ def test_change_password_throttled(env):
         assert me.put("/api/auth/password", json={"current_password": "wrong-pass-1", "new_password": "brand-new-pass"}).status_code == 400
     assert me.put("/api/auth/password", json={"current_password": PASSWORD, "new_password": "brand-new-pass"}).status_code == 429
     auth_service._failures.clear()
+
+
+def test_admin_reset_password_validation(env):
+    admin = make_client("admin", "admin")
+    taro = make_client("taro", "user")
+    uid = next(u["id"] for u in admin.get("/api/users").json() if u["username"] == "taro")
+
+    # 短すぎるパスワードは拒否され、元のパスワードのまま・ログインも維持される
+    assert admin.put(f"/api/users/{uid}/password", json={"password": "short"}).status_code == 400
+    assert taro.get("/api/auth/me").status_code == 200
+    assert TestClient(app).post("/api/auth/login", json={"username": "taro", "password": PASSWORD}).status_code == 200
+
+    # 存在しないユーザー
+    assert admin.put("/api/users/9999/password", json={"password": "new-password-1"}).status_code == 404
+
+    # 未ログインは401、一般ユーザーは(自分自身でも)403
+    assert TestClient(app).put(f"/api/users/{uid}/password", json={"password": "new-password-1"}).status_code == 401
+    assert taro.put(f"/api/users/{uid}/password", json={"password": "new-password-1"}).status_code == 403
+
+
+def test_admin_reset_password_replaces_old_password(env):
+    admin = make_client("admin", "admin")
+    make_client("taro", "user")
+    uid = next(u["id"] for u in admin.get("/api/users").json() if u["username"] == "taro")
+
+    assert admin.put(f"/api/users/{uid}/password", json={"password": "new-password-1"}).status_code == 204
+    fresh = TestClient(app)
+    assert fresh.post("/api/auth/login", json={"username": "taro", "password": PASSWORD}).status_code == 401
+    assert fresh.post("/api/auth/login", json={"username": "taro", "password": "new-password-1"}).status_code == 200
+    assert admin.get("/api/auth/me").status_code == 200  # 管理者本人のログインは影響を受けない
+
+
+def test_admin_reset_own_password_logs_out_admin(env):
+    admin = make_client("admin", "admin")
+    me = admin.get("/api/auth/me").json()
+    assert admin.put(f"/api/users/{me['id']}/password", json={"password": "new-password-1"}).status_code == 204
+    assert admin.get("/api/auth/me").status_code == 401  # 自分のセッションも無効になる
+    assert TestClient(app).post("/api/auth/login", json={"username": "admin", "password": "new-password-1"}).status_code == 200
