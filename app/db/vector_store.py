@@ -53,6 +53,31 @@ def add_chunks(
     )
 
 
+def replace_chunks(
+    manual_id: int,
+    user_id: int,
+    texts: list[str],
+    embeddings: list[list[float]],
+    metadatas: list[dict],
+) -> None:
+    """マニュアル1件分のチャンクを新しい内容に差し替える。
+
+    先に新しいチャンクを上書き保存し、そのあとで余った古いチャンクだけを消す。
+    途中で失敗しても、古い内容がまるごと消えることはない。
+    """
+    metas = []
+    for i in range(len(texts)):
+        m = dict(metadatas[i])
+        m.update({"manual_id": manual_id, "user_id": user_id, "chunk_index": i})
+        metas.append(m)
+    new_ids = [f"{manual_id}-{i}" for i in range(len(texts))]
+    col = get_collection()
+    col.upsert(ids=new_ids, documents=texts, embeddings=embeddings, metadatas=metas)
+    stale = [i for i in col.get(where={"manual_id": manual_id}, include=[])["ids"] if i not in new_ids]
+    if stale:
+        col.delete(ids=stale)
+
+
 def search(
     query_embedding: list[float],
     user_id: int | None = None,

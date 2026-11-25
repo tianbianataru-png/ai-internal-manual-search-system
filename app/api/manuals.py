@@ -26,6 +26,20 @@ async def upload_manual(file: UploadFile, request: Request, admin: dict = Depend
     return manual
 
 
+@router.put("/{manual_id}", response_model=ManualOut)
+async def update_manual(manual_id: int, file: UploadFile, request: Request, admin: dict = Depends(require_admin)):
+    """登録済みマニュアルを新しいファイルで差し替える。失敗した場合、元のマニュアルはそのまま残る。"""
+    s = get_settings()
+    data = await file.read(s.max_upload_mb * 1024 * 1024 + 1)
+    try:
+        manual, old_name = manual_service.update_manual(manual_id, file.filename or "", data, admin["id"])
+    except ManualError as e:
+        raise _http(e)
+    detail = manual["filename"] if old_name == manual["filename"] else f"{old_name} → {manual['filename']}"
+    audit_service.record("manual_update", request, user=admin, detail=detail)
+    return manual
+
+
 @router.get("", response_model=list[ManualOut], dependencies=[Depends(get_current_user)])
 def list_manuals():
     return manual_service.list_manuals()

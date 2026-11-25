@@ -8,7 +8,9 @@ from app.parsers.base import ParsedSection, ParseError
 
 def parse_pdf(path: Path) -> list[ParsedSection]:
     try:
-        doc = pymupdf.open(path)
+        # ファイルを直接開くと、壊れたPDFのとき Windows でファイルが開いたまま残り削除できなくなる。
+        # そのため中身を読み込んでから開く。
+        doc = pymupdf.open(stream=path.read_bytes(), filetype="pdf")
     except Exception as e:
         raise ParseError("PDFを開けませんでした。破損しているか、PDFではない可能性があります。") from e
     with doc:

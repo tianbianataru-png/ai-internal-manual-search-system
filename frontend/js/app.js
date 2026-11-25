@@ -187,9 +187,12 @@ async function loadManuals() {
       tr.append(el("td", "", m.filename), el("td", "", m.file_type), el("td", "", formatSize(m.file_size)));
       const st = el("td", m.status === "error" ? "status-error" : "",
         m.status === "ready" ? `登録済み(${m.chunk_count}件に分割)` : `失敗: ${m.error_message || ""}`);
-      tr.append(st, el("td", "", m.created_at));
+      tr.append(st, el("td", "", m.updated_at ? `${m.created_at}(更新: ${m.updated_at})` : m.created_at));
       const td = el("td");
       if (isAdmin()) {
+        const upd = el("button", "danger plain", "更新");
+        upd.addEventListener("click", () => pickUpdateFile(m));
+        td.append(upd, " ");
         const del = el("button", "danger", "削除");
         del.addEventListener("click", async () => {
           if (!confirm(`「${m.filename}」を削除しますか?`)) return;
@@ -202,6 +205,28 @@ async function loadManuals() {
       tbody.append(tr);
     }
   } catch (err) { showMessage(err.message, true); }
+}
+
+// 登録済みマニュアルを新しいファイルで差し替える(ファイルを選ぶと、確認してから送信)。
+function pickUpdateFile(m) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".pdf,.docx,.txt";
+  input.addEventListener("change", async () => {
+    const f = input.files[0];
+    if (!f) return;
+    if (!confirm(`「${m.filename}」を「${f.name}」の内容に差し替えますか?`)) return;
+    clearMessage();
+    showMessage("更新中です...");
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      await api(`/api/manuals/${m.id}`, { method: "PUT", body: fd });
+      showMessage(`「${f.name}」の内容に更新しました。`);
+      loadManuals();
+    } catch (err) { showMessage(err.message, true); }
+  });
+  input.click();
 }
 
 $("upload-form").addEventListener("submit", async (e) => {
@@ -309,7 +334,7 @@ async function loadFeedback() {
 const AUDIT_LABELS = {
   login: "ログイン", login_failed: "ログイン失敗", logout: "ログアウト", password_change: "パスワード変更(本人)",
   user_create: "ユーザー追加", password_reset: "パスワードリセット(管理者)", user_delete: "ユーザー削除",
-  manual_upload: "マニュアル登録", manual_delete: "マニュアル削除",
+  manual_upload: "マニュアル登録", manual_update: "マニュアル更新", manual_delete: "マニュアル削除",
 };
 const AUDIT_PAGE = 100;
 let auditOffset = 0;

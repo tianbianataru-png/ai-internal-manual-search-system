@@ -1,7 +1,11 @@
+
+
 # AI社内マニュアル検索システム
 
 社内マニュアル(PDF / Word / テキスト)を登録し、自然な文章で質問すると、
 マニュアルの内容だけに基づいて回答と根拠(出典)を返すシステムです(RAG方式)。
+
+
 
 ## 使用技術
 Python 3.13 / FastAPI / OpenAI API / ChromaDB / SQLite / PyMuPDF / python-docx
@@ -83,9 +87,6 @@ pytest
 | GET | /api/history | 質問履歴の一覧 |
 | GET | /api/history/{id} | 質問履歴の詳細 |
 | DELETE | /api/history/{id} | 質問履歴の削除 |
-| PUT | /api/history/{id}/rating | 回答の評価(`good` / `bad` / `null`で取り消し。本人のみ) |
-| GET | /api/feedback/summary | 評価の集計と「役に立たなかった」回答の一覧(管理者) |
-| GET | /api/audit | 操作ログの一覧(管理者。`action`で種類の絞り込み、`limit`/`offset`) |
 
 ## 開発状況
 - [x] ステップ1: 環境構築

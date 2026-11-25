@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS manuals (
     status      TEXT NOT NULL DEFAULT 'pending',  -- pending / ready / error
     chunk_count INTEGER NOT NULL DEFAULT 0,
     error_message TEXT,
-    created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    updated_at  TEXT                                  -- 差し替えた日時(未更新ならNULL)
 );
 CREATE INDEX IF NOT EXISTS idx_manuals_user ON manuals(user_id);
 
@@ -85,3 +86,6 @@ def init_db() -> None:
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(chat_history)")]
         if "rating" not in cols:
             conn.execute("ALTER TABLE chat_history ADD COLUMN rating INTEGER")
+        cols = [r["name"] for r in conn.execute("PRAGMA table_info(manuals)")]
+        if "updated_at" not in cols:
+            conn.execute("ALTER TABLE manuals ADD COLUMN updated_at TEXT")

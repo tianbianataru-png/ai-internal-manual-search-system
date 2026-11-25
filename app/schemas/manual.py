@@ -10,3 +10,4 @@ class ManualOut(BaseModel):
     chunk_count: int
     error_message: str | None = None
     created_at: str
+    updated_at: str | None = None  # 差し替えた日時(未更新ならなし)
