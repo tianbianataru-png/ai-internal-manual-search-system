@@ -36,6 +36,7 @@ form button:disabled { background: #99aabb; cursor: wait; }
 .sources { padding-left: 0; list-style: none; }
 .sources li { border-left: 4px solid #1f6feb; background: #fafafa; padding: 8px 12px; margin-bottom: 8px; }
 .sources .src-name { font-weight: bold; }
+.sources .src-dl { display: inline-block; margin-top: 4px; font-size: 13px; }
 .sources .src-text { white-space: pre-wrap; margin-top: 4px; color: #444; font-size: 14px; }
 .message { padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; background: #e6f4ea; }
 .message.error { background: #fde8e8; color: #a11; }

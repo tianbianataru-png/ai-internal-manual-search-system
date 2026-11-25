@@ -150,6 +150,15 @@ def list_manuals() -> list[dict]:
     return [_row_to_dict(r) for r in rows]
 
 
+def get_file(manual_id: int) -> tuple[Path, str]:
+    """ダウンロード用に、保存されているファイルのパスと元のファイル名を返す。"""
+    with get_connection() as conn:
+        row = conn.execute("SELECT filename, stored_path FROM manuals WHERE id=?", (manual_id,)).fetchone()
+    if row is None or not Path(row["stored_path"]).is_file():
+        raise ManualError("マニュアルが見つかりません。", 404)
+    return Path(row["stored_path"]), row["filename"]
+
+
 def delete_manual(manual_id: int) -> None:
     """ファイル・検索データ・DB記録をすべて削除する。"""
     with get_connection() as conn:

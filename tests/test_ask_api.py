@@ -48,7 +48,7 @@ def test_answer_with_sources_and_history(client, monkeypatch):
     body = r.json()
     assert body["answer"] == "入社6か月後から取得できます。"
     assert body["sources"] == [
-        {"manual_name": "rule.pdf", "page": 3, "text": "有給休暇は入社6か月後から。", "ref": 1}
+        {"manual_id": 1, "manual_name": "rule.pdf", "page": 3, "text": "有給休暇は入社6か月後から。", "ref": 1}
     ]
     assert len(calls) == 1
     with database.get_connection() as c:

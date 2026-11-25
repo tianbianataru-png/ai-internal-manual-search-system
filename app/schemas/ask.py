@@ -10,6 +10,7 @@ class SourceOut(BaseModel):
     manual_name: str
     page: int | None = None
     text: str
+    manual_id: int | None = None  # ダウンロード用(古い履歴では None)
     ref: int | None = None  # 回答文中の [1] などの番号(古い履歴では None)
 
 

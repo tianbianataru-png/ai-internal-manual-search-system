@@ -43,6 +43,11 @@ function renderSources(ul, sources) {
     const li = el("li");
     const label = s.page != null ? `${s.manual_name}(p.${s.page})` : s.manual_name;
     li.append(el("div", "src-name", s.ref != null ? `[${s.ref}] ${label}` : label));
+    if (s.manual_id != null) {
+      const a = el("a", "src-dl", "元のファイルをダウンロード");
+      a.href = `/api/manuals/${s.manual_id}/file`;
+      li.append(a);
+    }
     li.append(el("div", "src-text", s.text));
     ul.append(li);
   }
@@ -189,6 +194,9 @@ async function loadManuals() {
         m.status === "ready" ? `登録済み(${m.chunk_count}件に分割)` : `失敗: ${m.error_message || ""}`);
       tr.append(st, el("td", "", m.updated_at ? `${m.created_at}(更新: ${m.updated_at})` : m.created_at));
       const td = el("td");
+      const dl = el("a", "dl", "ダウンロード");
+      dl.href = `/api/manuals/${m.id}/file`;
+      td.append(dl, " ");
       if (isAdmin()) {
         const upd = el("button", "danger plain", "更新");
         upd.addEventListener("click", () => pickUpdateFile(m));

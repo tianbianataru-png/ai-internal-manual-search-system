@@ -25,6 +25,21 @@ def _upload(client, name="a.txt", content="有給休暇は人事部に申請し�
     return client.post("/api/manuals", files={"file": (name, content)})
 
 
+def test_download_original_file(client):
+    from fastapi.testclient import TestClient
+
+    content = "有給休暇は人事部に申請します。".encode()
+    mid = _upload(client, name="就業規則.txt", content=content).json()["id"]
+    r = client.get(f"/api/manuals/{mid}/file")
+    assert r.status_code == 200 and r.content == content
+    assert "filename*=utf-8''" in r.headers["content-disposition"].lower()
+
+    taro = make_client("taro", "user")  # 一般ユーザーもダウンロードできる
+    assert taro.get(f"/api/manuals/{mid}/file").content == content
+    assert TestClient(app).get(f"/api/manuals/{mid}/file").status_code == 401  # 未ログインは不可
+    assert client.get("/api/manuals/9999/file").status_code == 404
+
+
 def test_upload_list_delete(client, tmp_path):
     r = _upload(client)
     assert r.status_code == 201

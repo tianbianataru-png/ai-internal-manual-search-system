@@ -1,3 +1,4 @@
+from fastapi.responses import FileResponse
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 
 from app.api.deps import get_current_user, require_admin
@@ -43,6 +44,16 @@ async def update_manual(manual_id: int, file: UploadFile, request: Request, admi
 @router.get("", response_model=list[ManualOut], dependencies=[Depends(get_current_user)])
 def list_manuals():
     return manual_service.list_manuals()
+
+
+@router.get("/{manual_id}/file", dependencies=[Depends(get_current_user)])
+def download_manual(manual_id: int):
+    """登録されている元のファイルをダウンロードする(ログイン済みなら誰でも可。マニュアルは全員共通)。"""
+    try:
+        path, name = manual_service.get_file(manual_id)
+    except ManualError as e:
+        raise _http(e)
+    return FileResponse(path, filename=name)
 
 
 @router.delete("/{manual_id}", status_code=204)

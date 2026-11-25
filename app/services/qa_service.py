@@ -66,6 +66,7 @@ def _cited_sources(answer: str, hits: list[dict]) -> list[dict]:
     chosen = [(i, h) for i, h in enumerate(hits, start=1) if i in cited] or list(enumerate(hits, start=1))
     return [
         {
+            "manual_id": h["metadata"].get("manual_id"),
             "manual_name": h["metadata"].get("filename", "不明"),
             "page": h["metadata"].get("page"),
             "text": h["text"],
