@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 ACTIONS = (
     "login", "login_failed", "logout", "password_change",
     "user_create", "password_reset", "user_delete",
-    "manual_upload", "manual_update", "manual_delete",
+    "manual_upload", "manual_update", "manual_delete", "manual_category",
 )
 MAX_DETAIL = 200
 

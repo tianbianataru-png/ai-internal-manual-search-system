@@ -94,15 +94,33 @@ document.querySelectorAll(".tab").forEach((btn) => {
   });
 });
 
-// ---- 検索対象(マニュアル選択) ----
+// ---- 検索対象(分類・マニュアル選択) ----
+let allManuals = [];
+
+// 選んだ分類に合わせて、検索対象のマニュアルの選択肢を絞る。
+function fillScopeManuals(list) {
+  const sel = $("scope");
+  const cat = $("scope-category").value;
+  sel.replaceChildren(new Option("すべてのマニュアル", ""));
+  for (const m of list.filter((x) => x.status === "ready" && (!cat || x.category === cat))) {
+    sel.append(new Option(m.filename, String(m.id)));
+  }
+}
+$("scope-category").addEventListener("change", () => { fillScopeManuals(allManuals); });
+
 async function loadScope() {
   const sel = $("scope");
   const keep = sel.value;
   try {
     const list = await api("/api/manuals");
-    sel.replaceChildren(new Option("すべてのマニュアル", ""));
-    for (const m of list.filter((x) => x.status === "ready")) sel.append(new Option(m.filename, String(m.id)));
+    const catSel = $("scope-category");
+    const keepCat = catSel.value;
+    const cats = [...new Set(list.filter((x) => x.status === "ready" && x.category).map((x) => x.category))].sort();
+    catSel.replaceChildren(new Option("すべて", ""), ...cats.map((c) => new Option(c, c)));
+    catSel.value = cats.includes(keepCat) ? keepCat : "";
+    fillScopeManuals(list);
     sel.value = [...sel.options].some((o) => o.value === keep) ? keep : "";
+    allManuals = list;
   } catch (_) { /* 取得できなくても質問自体は可能 */ }
 }
 
@@ -165,6 +183,7 @@ $("ask-form").addEventListener("submit", async (e) => {
       body: JSON.stringify({
         question: $("question").value,
         manual_id: $("scope").value ? Number($("scope").value) : null,
+        category: $("scope-category").value || null,
       }),
     });
     $("answer").textContent = r.answer;
@@ -187,9 +206,11 @@ async function loadManuals() {
     const tbody = $("manual-list");
     tbody.replaceChildren();
     $("manual-empty").hidden = list.length > 0;
+    const opts = [...new Set(list.map((x) => x.category).filter(Boolean))].sort();
+    $("category-options").replaceChildren(...opts.map((c) => new Option(c)));
     for (const m of list) {
       const tr = el("tr");
-      tr.append(el("td", "", m.filename), el("td", "", m.file_type), el("td", "", formatSize(m.file_size)));
+      tr.append(el("td", "", m.filename), el("td", "", m.category || "未分類"), el("td", "", m.file_type), el("td", "", formatSize(m.file_size)));
       const st = el("td", m.status === "error" ? "status-error" : "",
         m.status === "ready" ? `登録済み(${m.chunk_count}件に分割)` : `失敗: ${m.error_message || ""}`);
       tr.append(st, el("td", "", m.updated_at ? `${m.created_at}(更新: ${m.updated_at})` : m.created_at));
@@ -201,6 +222,9 @@ async function loadManuals() {
         const upd = el("button", "danger plain", "更新");
         upd.addEventListener("click", () => pickUpdateFile(m));
         td.append(upd, " ");
+        const cat = el("button", "danger plain", "分類");
+        cat.addEventListener("click", () => changeCategory(m));
+        td.append(cat, " ");
         const del = el("button", "danger", "削除");
         del.addEventListener("click", async () => {
           if (!confirm(`「${m.filename}」を削除しますか?`)) return;
@@ -212,6 +236,22 @@ async function loadManuals() {
       tr.append(td);
       tbody.append(tr);
     }
+  } catch (err) { showMessage(err.message, true); }
+}
+
+// 分類を変更する(空にすると未分類)。
+async function changeCategory(m) {
+  const input = prompt(`「${m.filename}」の分類を入力してください(30文字以内・空欄で未分類)`, m.category || "");
+  if (input === null) return;
+  clearMessage();
+  try {
+    await api(`/api/manuals/${m.id}/category`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category: input }),
+    });
+    showMessage("分類を変更しました。");
+    loadManuals();
   } catch (err) { showMessage(err.message, true); }
 }
 
@@ -246,6 +286,7 @@ $("upload-form").addEventListener("submit", async (e) => {
   try {
     const fd = new FormData();
     fd.append("file", $("file").files[0]);
+    fd.append("category", $("upload-category").value);
     const m = await api("/api/manuals", { method: "POST", body: fd });
     if (m.status === "error") showMessage(`解析に失敗しました: ${m.error_message}`, true);
     else showMessage(`「${m.filename}」を登録しました。`);
@@ -350,7 +391,7 @@ async function loadFeedback() {
 const AUDIT_LABELS = {
   login: "ログイン", login_failed: "ログイン失敗", logout: "ログアウト", password_change: "パスワード変更(本人)",
   user_create: "ユーザー追加", password_reset: "パスワードリセット(管理者)", user_delete: "ユーザー削除",
-  manual_upload: "マニュアル登録", manual_update: "マニュアル更新", manual_delete: "マニュアル削除",
+  manual_upload: "マニュアル登録", manual_update: "マニュアル更新", manual_delete: "マニュアル削除", manual_category: "マニュアル分類変更",
 };
 const AUDIT_PAGE = 100;
 let auditOffset = 0;

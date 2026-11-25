@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS manuals (
     chunk_count INTEGER NOT NULL DEFAULT 0,
     error_message TEXT,
     created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-    updated_at  TEXT                                  -- 差し替えた日時(未更新ならNULL)
+    updated_at  TEXT,                                 -- 差し替えた日時(未更新ならNULL)
+    category    TEXT NOT NULL DEFAULT ''              -- 分類(例: 経理・人事)。空なら未分類
 );
 CREATE INDEX IF NOT EXISTS idx_manuals_user ON manuals(user_id);
 
@@ -89,3 +90,5 @@ def init_db() -> None:
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(manuals)")]
         if "updated_at" not in cols:
             conn.execute("ALTER TABLE manuals ADD COLUMN updated_at TEXT")
+        if "category" not in cols:
+            conn.execute("ALTER TABLE manuals ADD COLUMN category TEXT NOT NULL DEFAULT ''")

@@ -19,6 +19,17 @@ class ManualError(Exception):
         self.status_code = status_code
 
 
+MAX_CATEGORY = 30
+
+
+def normalize_category(category: str | None) -> str:
+    """前後の空白を除く。空なら「未分類」。長すぎる場合はエラー。"""
+    c = (category or "").strip()
+    if len(c) > MAX_CATEGORY:
+        raise ManualError(f"分類は{MAX_CATEGORY}文字以内で入力してください。")
+    return c
+
+
 def validate_upload(filename: str, data: bytes) -> str:
     """形式とサイズを検証し、拡張子(ドットなし・小文字)を返す。"""
     s = get_settings()
@@ -53,9 +64,10 @@ def _chunk_and_embed(stored: Path, display_name: str) -> tuple[list[str], list[l
     return texts, embed_texts(texts), metas
 
 
-def register_manual(filename: str, data: bytes, user_id: int) -> dict:
+def register_manual(filename: str, data: bytes, user_id: int, category: str = "") -> dict:
     """マニュアルを登録する(user_id は登録した管理者)。解析に失敗した場合も記録を残し、status='error' で返す。"""
     ext = validate_upload(filename, data)
+    category = normalize_category(category)
     s = get_settings()
     s.upload_dir.mkdir(parents=True, exist_ok=True)
     stored = s.upload_dir / f"{uuid.uuid4().hex}.{ext}"
@@ -64,8 +76,8 @@ def register_manual(filename: str, data: bytes, user_id: int) -> dict:
 
     with get_connection() as conn:
         manual_id = conn.execute(
-            "INSERT INTO manuals(user_id, filename, stored_path, file_type, file_size) VALUES (?,?,?,?,?)",
-            (user_id, display_name, str(stored), ext, len(data)),
+            "INSERT INTO manuals(user_id, filename, stored_path, file_type, file_size, category) VALUES (?,?,?,?,?,?)",
+            (user_id, display_name, str(stored), ext, len(data), category),
         ).lastrowid
 
     status, chunk_count, error = "ready", 0, None
@@ -141,6 +153,24 @@ def update_manual(manual_id: int, filename: str, data: bytes, user_id: int) -> t
         raise
     _remove_file(old["stored_path"])
     return _row_to_dict(row), old["filename"]
+
+
+def set_category(manual_id: int, category: str) -> tuple[str, str]:
+    """分類を変更する(検索データは変えない)。戻り値は (ファイル名, 新しい分類)。"""
+    category = normalize_category(category)
+    with get_connection() as conn:
+        row = conn.execute("SELECT filename FROM manuals WHERE id=?", (manual_id,)).fetchone()
+        if row is None:
+            raise ManualError("マニュアルが見つかりません。", 404)
+        conn.execute("UPDATE manuals SET category=? WHERE id=?", (category, manual_id))
+    return row["filename"], category
+
+
+def manual_ids_in_category(category: str) -> list[int]:
+    """指定した分類の、検索できる状態のマニュアルIDを返す。"""
+    with get_connection() as conn:
+        rows = conn.execute("SELECT id FROM manuals WHERE category=? AND status='ready'", (category,)).fetchall()
+    return [r["id"] for r in rows]
 
 
 def list_manuals() -> list[dict]:

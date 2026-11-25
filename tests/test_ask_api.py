@@ -141,3 +141,42 @@ def test_search_limited_to_one_manual(client, monkeypatch):
     assert [s["manual_name"] for s in body["sources"]] == ["b.txt"]
     none = client.post("/api/ask", json={"question": "何か", "manual_id": 99}).json()
     assert none["answer"] == NOT_FOUND
+
+
+def _add_manual_row(manual_id, name, category, status="ready"):
+    with database.get_connection() as c:
+        c.execute(
+            "INSERT INTO manuals(id, user_id, filename, stored_path, file_type, status, category) VALUES (?,?,?,?,?,?,?)",
+            (manual_id, 1, name, "x", "txt", status, category),
+        )
+
+
+def test_search_limited_to_category(client, monkeypatch):
+    _add_manual_row(1, "a.txt", "経理")
+    _add_manual_row(2, "b.txt", "人事")
+    _add_manual_row(3, "c.txt", "経理")
+    for mid, name in [(1, "a.txt"), (2, "b.txt"), (3, "c.txt")]:
+        vector_store.add_chunks(mid, 1, [f"{name}の資料"], [[1.0, 0.0]], [{"filename": name}])
+    _fake_llm(monkeypatch, "答え")
+
+    body = client.post("/api/ask", json={"question": "何か", "category": "経理"}).json()
+    assert sorted(s["manual_name"] for s in body["sources"]) == ["a.txt", "c.txt"]
+
+    # 分類 + マニュアルの両方を指定すると、その分類の中のそのマニュアルだけ
+    body = client.post("/api/ask", json={"question": "何か", "category": "経理", "manual_id": 3}).json()
+    assert [s["manual_name"] for s in body["sources"]] == ["c.txt"]
+    body = client.post("/api/ask", json={"question": "何か", "category": "経理", "manual_id": 2}).json()
+    assert body["answer"] == NOT_FOUND and body["sources"] == []  # 分類の外のマニュアルは対象外
+
+    # 空文字・未指定は絞り込みなし
+    for cat in ("", None):
+        body = client.post("/api/ask", json={"question": "何か", "category": cat}).json()
+        assert len(body["sources"]) == 3
+
+
+def test_category_without_manuals_does_not_call_llm(client, monkeypatch):
+    _add_manual_row(1, "a.txt", "経理")
+    vector_store.add_chunks(1, 1, ["資料"], [[1.0, 0.0]], [{"filename": "a.txt"}])
+    calls = _fake_llm(monkeypatch, "呼ばれないはず")
+    body = client.post("/api/ask", json={"question": "何か", "category": "存在しない分類"}).json()
+    assert body["answer"] == NOT_FOUND and calls == []

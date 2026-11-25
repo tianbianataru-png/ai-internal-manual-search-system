@@ -83,13 +83,16 @@ def search(
     user_id: int | None = None,
     top_k: int = 5,
     manual_id: int | None = None,
+    manual_ids: list[int] | None = None,
 ) -> list[dict]:
-    """質問ベクトルに近いチャンクを返す。user_id(登録者)や manual_id で絞り込める。"""
+    """質問ベクトルに近いチャンクを返す。user_id(登録者)・manual_id・manual_ids(複数)で絞り込める。"""
     conds = []
     if user_id is not None:
         conds.append({"user_id": user_id})
     if manual_id is not None:
         conds.append({"manual_id": manual_id})
+    if manual_ids is not None:
+        conds.append({"manual_id": {"$in": manual_ids}})
     where = None if not conds else conds[0] if len(conds) == 1 else {"$and": conds}
     res = get_collection().query(
         query_embeddings=[query_embedding], n_results=top_k, where=where

@@ -7,6 +7,7 @@ from openai import OpenAI
 from app.config import get_settings
 from app.db import vector_store
 from app.db.database import get_connection
+from app.services import manual_service
 from app.services.embedding import EmbeddingError, embed_query
 
 TOP_K = 5
@@ -76,17 +77,21 @@ def _cited_sources(answer: str, hits: list[dict]) -> list[dict]:
     ]
 
 
-def ask(question: str, user_id: int, manual_id: int | None = None) -> dict:
-    """user_id は履歴の保存先。manual_id を指定するとそのマニュアルだけを検索する(未指定は全マニュアル)。"""
+def ask(question: str, user_id: int, manual_id: int | None = None, category: str | None = None) -> dict:
+    """user_id は履歴の保存先。manual_id・category を指定すると、そのマニュアル/分類だけを検索する(未指定は全マニュアル)。
+    両方指定した場合は、その分類の中のそのマニュアルだけが対象になる。"""
     question = (question or "").strip()
     if not question:
         raise QuestionError("質問を入力してください。")
     if len(question) > 500:
         raise QuestionError("質問は500文字以内で入力してください。")
 
+    ids = None  # None なら絞り込みなし
+    if category is not None and category != "":
+        ids = manual_service.manual_ids_in_category(category.strip())
     hits = []
-    if vector_store.count() > 0:
-        found = vector_store.search(embed_query(question), top_k=TOP_K, manual_id=manual_id)
+    if vector_store.count() > 0 and ids != []:  # 分類にマニュアルがなければ検索しない
+        found = vector_store.search(embed_query(question), top_k=TOP_K, manual_id=manual_id, manual_ids=ids)
         hits = [h for h in found if h["distance"] <= MAX_DISTANCE]
 
     if not hits:

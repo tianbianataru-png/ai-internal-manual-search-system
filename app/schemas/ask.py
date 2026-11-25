@@ -4,6 +4,7 @@ from pydantic import BaseModel
 class AskIn(BaseModel):
     question: str
     manual_id: int | None = None  # 指定すると、そのマニュアルだけを検索する
+    category: str | None = None  # 指定すると、その分類のマニュアルだけを検索する
 
 
 class SourceOut(BaseModel):
