@@ -316,6 +316,14 @@ async function loadFeedback() {
       box.append(el("b", "", String(value)), el("span", "meta", label));
       stats.append(box);
     }
+    const tbody = $("fb-manuals");
+    tbody.replaceChildren();
+    $("fb-manuals-empty").hidden = s.by_manual.length > 0;
+    for (const m of s.by_manual) {
+      const tr = el("tr");
+      tr.append(el("td", "", m.manual_name), el("td", "", String(m.good)), el("td", "", String(m.bad)));
+      tbody.append(tr);
+    }
     const ul = $("fb-bad");
     ul.replaceChildren();
     $("fb-empty").hidden = s.recent_bad.length > 0;

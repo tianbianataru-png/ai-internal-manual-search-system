@@ -103,6 +103,7 @@ def feedback_summary(bad_limit: int = 30) -> dict:
             "JOIN users u ON u.id = h.user_id WHERE h.rating = -1 ORDER BY h.id DESC LIMIT ?",
             (bad_limit,),
         ).fetchall()
+        rated_rows = conn.execute("SELECT sources, rating FROM chat_history WHERE rating IS NOT NULL").fetchall()
     total, good, bad = counts["total"], counts["good"], counts["bad"]
     return {
         "total": total,
@@ -110,4 +111,22 @@ def feedback_summary(bad_limit: int = 30) -> dict:
         "bad": bad,
         "unrated": total - good - bad,
         "recent_bad": [dict(r) for r in bad_rows],
+        "by_manual": _by_manual(rated_rows),
     }
+
+
+NO_SOURCE_LABEL = "(出典なし・資料が見つからなかった回答)"
+
+
+def _by_manual(rated_rows) -> list[dict]:
+    """評価された回答を、出典にしたマニュアル別に数える。1つの回答が複数マニュアルを引用していれば、それぞれに数える。
+    「役に立たなかった」の割合が高い順(同率は件数の多い順)に並べる。"""
+    stats: dict[str, dict] = {}
+    for r in rated_rows:
+        names = {s.get("manual_name", "不明") for s in _load_sources(r["sources"]) if isinstance(s, dict)}
+        for name in names or {NO_SOURCE_LABEL}:
+            st = stats.setdefault(name, {"manual_name": name, "good": 0, "bad": 0})
+            st["good" if r["rating"] == 1 else "bad"] += 1
+    result = list(stats.values())
+    result.sort(key=lambda x: (-x["bad"] / (x["good"] + x["bad"]), -x["bad"], x["manual_name"]))
+    return result

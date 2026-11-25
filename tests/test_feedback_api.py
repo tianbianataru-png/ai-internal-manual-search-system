@@ -66,7 +66,7 @@ def test_summary_counts_and_recent_bad(env):
     admin = make_client("admin", "admin")
     taro = make_client("taro", "user")
     assert admin.get("/api/feedback/summary").json() == {
-        "total": 0, "good": 0, "bad": 0, "unrated": 0, "recent_bad": []
+        "total": 0, "good": 0, "bad": 0, "unrated": 0, "recent_bad": [], "by_manual": []
     }
 
     a, b, c, d = (_insert(_uid(taro), question=f"質問{i}") for i in range(4))
@@ -83,6 +83,35 @@ def test_summary_counts_and_recent_bad(env):
 
     taro.put(f"/api/history/{c}/rating", json={"rating": None})  # 取り消すと一覧から消える
     assert [x["id"] for x in admin.get("/api/feedback/summary").json()["recent_bad"]] == [b]
+
+
+def test_summary_by_manual(env):
+    import json
+
+    admin = make_client("admin", "admin")
+    taro = make_client("taro", "user")
+
+    def ask_with(names, rating):
+        sources = json.dumps([{"manual_name": n, "page": 1, "text": "x", "ref": i} for i, n in enumerate(names, 1)])
+        with database.get_connection() as c:
+            hid = c.execute(
+                "INSERT INTO chat_history(user_id, question, answer, sources) VALUES (?,?,?,?)",
+                (_uid(taro), "q", "a", sources),
+            ).lastrowid
+        if rating:
+            taro.put(f"/api/history/{hid}/rating", json={"rating": rating})
+
+    ask_with(["A.pdf"], "bad")
+    ask_with(["A.pdf", "B.pdf"], "bad")  # 複数引用は両方に数える
+    ask_with(["B.pdf"], "good")
+    ask_with(["B.pdf"], "good")
+    ask_with(["A.pdf"], None)  # 未評価は数えない
+    ask_with([], "bad")  # 出典なし
+
+    rows = admin.get("/api/feedback/summary").json()["by_manual"]
+    got = {r["manual_name"]: (r["good"], r["bad"]) for r in rows}
+    assert got == {"A.pdf": (0, 2), "B.pdf": (2, 1), "(出典なし・資料が見つからなかった回答)": (0, 1)}
+    assert rows[-1]["manual_name"] == "B.pdf"  # 「役に立たなかった」の割合が最も低いものが最後
 
 
 def test_init_db_adds_rating_column_to_old_database(tmp_path, monkeypatch):

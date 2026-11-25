@@ -37,9 +37,16 @@ class BadAnswer(BaseModel):
     created_at: str
 
 
+class ManualFeedback(BaseModel):
+    manual_name: str
+    good: int
+    bad: int
+
+
 class FeedbackSummary(BaseModel):
     total: int
     good: int
     bad: int
     unrated: int
     recent_bad: list[BadAnswer]
+    by_manual: list[ManualFeedback]
