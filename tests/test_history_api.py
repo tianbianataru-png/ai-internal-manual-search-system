@@ -106,3 +106,20 @@ def test_filter_by_rating_and_combination(client):
 def test_search_only_sees_own_history(client):
     _insert("他人の秘密", user_id=999)
     assert client.get("/api/history", params={"q": "秘密"}).json() == []
+
+
+def test_export_csv_with_filter_and_injection_guard(client):
+    a = _insert("=SUM(1)の質問", answer="答え,カンマ")
+    _insert("経費")
+    client.put(f"/api/history/{a}/rating", json={"rating": "good"})
+    r = client.get("/api/history/export.csv")
+    assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
+    assert r.content.startswith("\ufeff".encode())
+    rows = list(__import__("csv").reader(r.content.decode("utf-8-sig").splitlines()))
+    assert rows[0] == ["日時", "質問", "回答", "出典数", "評価"]
+    assert len(rows) == 3
+    hit = [x for x in rows if "SUM" in x[1]][0]
+    assert hit[1] == "'=SUM(1)の質問" and hit[2] == "答え,カンマ" and hit[4] == "役に立った"
+    only = client.get("/api/history/export.csv", params={"rating": "good"}).content.decode("utf-8-sig")
+    assert "経費" not in only
+    assert client.get("/api/history/export.csv", params={"rating": "x"}).status_code == 400

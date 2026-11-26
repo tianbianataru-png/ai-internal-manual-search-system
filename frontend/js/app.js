@@ -355,6 +355,12 @@ $("upload-form").addEventListener("submit", async (e) => {
 });
 
 // ---- 履歴 ----
+$("history-csv").addEventListener("click", () => {
+  const params = new URLSearchParams();
+  if ($("history-q").value.trim()) params.set("q", $("history-q").value.trim());
+  if ($("history-rating").value) params.set("rating", $("history-rating").value);
+  window.location.href = "/api/history/export.csv" + (params.toString() ? `?${params}` : ""); // 現在の絞り込み条件で出力
+});
 $("history-filter").addEventListener("submit", (e) => { e.preventDefault(); clearMessage(); loadHistory(); });
 async function loadHistory() {
   $("history-detail").hidden = true;

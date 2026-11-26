@@ -1,4 +1,8 @@
+import csv
+import io
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 
 from app.api.deps import get_current_user
 from app.schemas.history import HistoryDetail, HistorySummary, RatingIn
@@ -21,6 +25,31 @@ def list_history(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge
         return history_service.list_history(user["id"], limit, offset, q, rating)
     except HistoryError as e:
         raise _http(e)
+
+
+def _cell(v) -> str:
+    """CSVの数式インジェクション対策: 先頭が = + - @ などなら ' を付けて文字列として扱わせる。"""
+    v = "" if v is None else str(v)
+    return "'" + v if v[:1] in ("=", "+", "-", "@", "\t", "\r") else v
+
+
+@router.get("/export.csv")
+def export_history(q: str | None = Query(None, max_length=100), rating: str | None = None,
+                   user: dict = Depends(get_current_user)):
+    """自分の質問履歴をCSVでダウンロード(一覧と同じ q / rating の絞り込みが使える。最大5000件)。"""
+    try:
+        rows = history_service.list_history(user["id"], 5000, 0, q, rating)
+    except HistoryError as e:
+        raise _http(e)
+    labels = {"good": "役に立った", "bad": "役に立たなかった", None: ""}
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["日時", "質問", "回答", "出典数", "評価"])
+    for h in rows:
+        w.writerow([h["created_at"], _cell(h["question"]), _cell(h["answer"]), h["source_count"], labels[h["rating"]]])
+    # BOM付きUTF-8(Excelで文字化けしない)
+    return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": "attachment; filename=history.csv"})
 
 
 @router.get("/{history_id}", response_model=HistoryDetail)
