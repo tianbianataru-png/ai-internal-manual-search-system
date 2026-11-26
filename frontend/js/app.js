@@ -169,6 +169,32 @@ $("logout-btn").addEventListener("click", async () => {
   showLogin();
 });
 
+// Server-Sent Events を読み、(イベント名, データ)ごとに onEvent を呼ぶ。
+async function readSSE(res, onEvent) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  const handle = (block) => {
+    let event = "message", data = "";
+    for (const line of block.split("\n")) {
+      if (line.startsWith("event: ")) event = line.slice(7);
+      else if (line.startsWith("data: ")) data += line.slice(6);
+    }
+    if (data) onEvent(event, JSON.parse(data));
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    buf += decoder.decode(value || new Uint8Array(), { stream: !done }).replace(/\r\n/g, "\n");
+    let i;
+    while ((i = buf.indexOf("\n\n")) >= 0) {
+      handle(buf.slice(0, i));
+      buf = buf.slice(i + 2);
+    }
+    if (done) break;
+  }
+  if (buf.trim()) handle(buf);
+}
+
 // ---- 質問 ----
 $("ask-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -177,7 +203,7 @@ $("ask-form").addEventListener("submit", async (e) => {
   btn.disabled = true;
   btn.textContent = "回答を作成中...";
   try {
-    const r = await api("/api/ask", {
+    const res = await fetch("/api/ask/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -186,10 +212,33 @@ $("ask-form").addEventListener("submit", async (e) => {
         category: $("scope-category").value || null,
       }),
     });
-    $("answer").textContent = r.answer;
-    renderSources($("sources"), r.sources);
-    renderRating($("ask-rating"), r.id, null);
+    if (res.status === 401) {
+      showLogin("ログインの有効期限が切れました。もう一度ログインしてください。");
+      return;
+    }
+    if (!res.ok) {
+      let detail = `エラーが発生しました(${res.status})`;
+      try { const b = await res.json(); if (typeof b.detail === "string") detail = b.detail; } catch (_) { /* 既定の文言 */ }
+      throw new Error(detail);
+    }
+    $("answer").textContent = "";
+    $("sources").replaceChildren();
+    $("ask-rating").replaceChildren();
     $("ask-result").hidden = false;
+    let finished = false;
+    await readSSE(res, (event, data) => {
+      if (event === "delta") {
+        $("answer").textContent += data;
+      } else if (event === "done") {
+        finished = true;
+        $("answer").textContent = data.answer; // 最終的な回答で置き換える
+        renderSources($("sources"), data.sources);
+        renderRating($("ask-rating"), data.id, null);
+      } else if (event === "error") {
+        throw new Error(data.detail || "回答の生成に失敗しました。");
+      }
+    });
+    if (!finished) throw new Error("回答が途中で途切れました。もう一度お試しください。");
   } catch (err) {
     $("ask-result").hidden = true;
     showMessage(err.message, true);

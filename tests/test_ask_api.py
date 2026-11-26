@@ -180,3 +180,56 @@ def test_category_without_manuals_does_not_call_llm(client, monkeypatch):
     calls = _fake_llm(monkeypatch, "呼ばれないはず")
     body = client.post("/api/ask", json={"question": "何か", "category": "存在しない分類"}).json()
     assert body["answer"] == NOT_FOUND and calls == []
+
+
+def _parse_sse(text):
+    out = []
+    for block in text.strip().split("\n\n"):
+        ev = block.split("\n")[0][len("event: "):]
+        data = json.loads(block.split("\n")[1][len("data: "):])
+        out.append((ev, data))
+    return out
+
+
+def _fake_stream(monkeypatch, pieces):
+    monkeypatch.setattr(qa_service, "_generate_answer_stream", lambda q, h, client=None: iter(pieces))
+
+
+def test_stream_sends_deltas_then_done_and_saves_history(client, monkeypatch):
+    _add_manual_chunk()
+    _fake_stream(monkeypatch, ["入社6か月", "後から[1]"])
+    r = client.post("/api/ask/stream", json={"question": "有給は?"})
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/event-stream")
+    events = _parse_sse(r.text)
+    assert [e for e, _ in events] == ["delta", "delta", "done"]
+    done = events[-1][1]
+    assert done["answer"] == "入社6か月後から[1]"
+    assert done["sources"][0]["manual_name"] == "rule.pdf"
+    with database.get_connection() as c:
+        assert c.execute("SELECT COUNT(*) FROM chat_history").fetchone()[0] == 1
+
+
+def test_stream_no_hits_returns_not_found_without_llm(client, monkeypatch):
+    _fake_stream(monkeypatch, ["呼ばれないはず"])
+    events = _parse_sse(client.post("/api/ask/stream", json={"question": "何か"}).text)
+    assert [e for e, _ in events] == ["done"]
+    assert events[0][1]["answer"] == NOT_FOUND and events[0][1]["sources"] == []
+
+
+def test_stream_validation_error_is_400(client):
+    assert client.post("/api/ask/stream", json={"question": "  "}).status_code == 400
+
+
+def test_stream_llm_failure_midway_sends_error_event(client, monkeypatch):
+    _add_manual_chunk()
+
+    def boom(q, h, client=None):
+        yield "途中"
+        raise qa_service.ChatError("失敗しました")
+
+    monkeypatch.setattr(qa_service, "_generate_answer_stream", boom)
+    events = _parse_sse(client.post("/api/ask/stream", json={"question": "有給は?"}).text)
+    assert [e for e, _ in events] == ["delta", "error"]
+    with database.get_connection() as c:
+        assert c.execute("SELECT COUNT(*) FROM chat_history").fetchone()[0] == 0
