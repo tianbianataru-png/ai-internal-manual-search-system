@@ -249,14 +249,19 @@ $("ask-form").addEventListener("submit", async (e) => {
 });
 
 // ---- マニュアル ----
+$("manual-q").addEventListener("input", () => loadManuals());
 async function loadManuals() {
   try {
-    const list = await api("/api/manuals");
+    const all = await api("/api/manuals");
     const tbody = $("manual-list");
     tbody.replaceChildren();
-    $("manual-empty").hidden = list.length > 0;
-    const opts = [...new Set(list.map((x) => x.category).filter(Boolean))].sort();
+    const opts = [...new Set(all.map((x) => x.category).filter(Boolean))].sort();
     $("category-options").replaceChildren(...opts.map((c) => new Option(c)));
+    // 絞り込み(ファイル名・分類の部分一致。大文字小文字は区別しない。未分類は「未分類」で探せる)
+    const kw = $("manual-q").value.trim().toLowerCase();
+    const list = kw ? all.filter((m) => `${m.filename} ${m.category || "未分類"}`.toLowerCase().includes(kw)) : all;
+    $("manual-empty").hidden = list.length > 0;
+    $("manual-empty").textContent = all.length && !list.length ? "条件に合うマニュアルはありません。" : "登録されたマニュアルはありません。";
     for (const m of list) {
       const tr = el("tr");
       tr.append(el("td", "", m.filename), el("td", "", m.category || "未分類"), el("td", "", m.file_type), el("td", "", formatSize(m.file_size)));
