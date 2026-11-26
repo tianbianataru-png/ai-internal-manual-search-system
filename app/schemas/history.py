@@ -37,6 +37,18 @@ class BadAnswer(BaseModel):
     created_at: str
 
 
+class UnansweredItem(BaseModel):
+    id: int
+    username: str
+    question: str
+    created_at: str
+
+
+class Unanswered(BaseModel):
+    total: int
+    items: list[UnansweredItem]
+
+
 class ManualFeedback(BaseModel):
     manual_name: str
     good: int

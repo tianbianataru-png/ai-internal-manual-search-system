@@ -449,6 +449,18 @@ async function loadFeedback() {
       li.append(main);
       ul.append(li);
     }
+    const un = await api("/api/feedback/unanswered");
+    $("fb-un-title").textContent = `回答できなかった質問(資料が見つからなかったもの・新しい順・全${un.total}件)`;
+    const unUl = $("fb-un");
+    unUl.replaceChildren();
+    $("fb-un-empty").hidden = un.items.length > 0;
+    for (const u of un.items) {
+      const li = el("li");
+      const main = el("div", "h-main");
+      main.append(el("div", "h-q", u.question), el("div", "meta", `${u.username}・${u.created_at}`));
+      li.append(main);
+      unUl.append(li);
+    }
   } catch (err) { showMessage(err.message, true); }
 }
 

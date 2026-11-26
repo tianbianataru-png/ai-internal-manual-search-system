@@ -130,6 +130,21 @@ def feedback_summary(bad_limit: int = 30) -> dict:
     }
 
 
+def unanswered(limit: int = 50) -> dict:
+    """管理者向け。資料が見つからず回答できなかった質問(全ユーザー分・新しい順)と、その件数。
+    マニュアルの不足を見つける手がかりにする。"""
+    from app.services.qa_service import NOT_FOUND  # 循環import回避のため関数内で読み込む
+
+    with get_connection() as conn:
+        total = conn.execute("SELECT COUNT(*) FROM chat_history WHERE answer = ?", (NOT_FOUND,)).fetchone()[0]
+        rows = conn.execute(
+            "SELECT h.id, h.question, h.created_at, u.username FROM chat_history h "
+            "JOIN users u ON u.id = h.user_id WHERE h.answer = ? ORDER BY h.id DESC LIMIT ?",
+            (NOT_FOUND, limit),
+        ).fetchall()
+    return {"total": total, "items": [dict(r) for r in rows]}
+
+
 NO_SOURCE_LABEL = "(出典なし・資料が見つからなかった回答)"
 
 

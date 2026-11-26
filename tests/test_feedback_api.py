@@ -130,3 +130,18 @@ def test_init_db_adds_rating_column_to_old_database(tmp_path, monkeypatch):
     with database.get_connection() as c:
         row = c.execute("SELECT question, rating FROM chat_history").fetchone()
     assert row["question"] == "古い質問" and row["rating"] is None
+
+
+def test_unanswered_lists_not_found_questions_admin_only(env):
+    from app.services.qa_service import NOT_FOUND
+
+    admin = make_client("boss", "admin")
+    taro = make_client("taro", "user")
+    a = _insert(_uid(taro), "資料なしの質問", NOT_FOUND)
+    _insert(_uid(taro), "答えられた質問", "有給は6か月後です")
+    b = _insert(_uid(admin), "別の質問", NOT_FOUND)
+    assert taro.get("/api/feedback/unanswered").status_code == 403
+    body = admin.get("/api/feedback/unanswered").json()
+    assert body["total"] == 2
+    assert [x["id"] for x in body["items"]] == [b, a]  # 新しい順
+    assert body["items"][1]["username"] == "taro" and "answer" not in body["items"][0]
