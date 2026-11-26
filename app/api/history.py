@@ -14,9 +14,13 @@ def _http(e: HistoryError) -> HTTPException:
 
 @router.get("", response_model=list[HistorySummary])
 def list_history(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+                 q: str | None = Query(None, max_length=100), rating: str | None = None,
                  user: dict = Depends(get_current_user)):
-    """質問履歴の一覧(新しい順)。"""
-    return history_service.list_history(user["id"], limit, offset)
+    """質問履歴の一覧(新しい順)。q: 質問・回答の部分一致、rating: good / bad / none(未評価)。"""
+    try:
+        return history_service.list_history(user["id"], limit, offset, q, rating)
+    except HistoryError as e:
+        raise _http(e)
 
 
 @router.get("/{history_id}", response_model=HistoryDetail)

@@ -69,3 +69,40 @@ def test_other_users_history_is_invisible(client):
     assert client.delete(f"/api/history/{other}").status_code == 404
     with database.get_connection() as c:
         assert c.execute("SELECT COUNT(*) FROM chat_history").fetchone()[0] == 1
+
+
+def test_search_by_keyword_in_question_or_answer(client):
+    a = _insert("有給はいつから?", answer="6か月後です")
+    b = _insert("経費精算の方法", answer="システムから申請")
+    ids = lambda **p: [h["id"] for h in client.get("/api/history", params=p).json()]
+    assert ids(q="有給") == [a]
+    assert ids(q="申請") == [b]
+    assert ids(q="存在しない") == []
+    assert ids(q="  ") == [b, a]
+
+
+def test_keyword_wildcards_are_literal(client):
+    a = _insert("100%達成")
+    _insert("普通の質問")
+    ids = [h["id"] for h in client.get("/api/history", params={"q": "%"}).json()]
+    assert ids == [a]
+    assert client.get("/api/history", params={"q": "_"}).json() == []
+
+
+def test_filter_by_rating_and_combination(client):
+    a = _insert("有給A")
+    b = _insert("有給B")
+    c = _insert("経費")
+    client.put(f"/api/history/{a}/rating", json={"rating": "good"})
+    client.put(f"/api/history/{b}/rating", json={"rating": "bad"})
+    ids = lambda **p: [h["id"] for h in client.get("/api/history", params=p).json()]
+    assert ids(rating="good") == [a]
+    assert ids(rating="bad") == [b]
+    assert ids(rating="none") == [c]
+    assert ids(rating="bad", q="有給") == [b]
+    assert client.get("/api/history", params={"rating": "x"}).status_code == 400
+
+
+def test_search_only_sees_own_history(client):
+    _insert("他人の秘密", user_id=999)
+    assert client.get("/api/history", params={"q": "秘密"}).json() == []

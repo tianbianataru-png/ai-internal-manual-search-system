@@ -69,6 +69,16 @@
       </section>
 
       <section id="tab-history" class="panel" hidden>
+        <form id="history-filter" class="row">
+          <input id="history-q" type="search" maxlength="100" placeholder="質問・回答のキーワード" />
+          <select id="history-rating">
+            <option value="">評価: すべて</option>
+            <option value="good">役に立った</option>
+            <option value="bad">役に立たなかった</option>
+            <option value="none">未評価</option>
+          </select>
+          <button type="submit">絞り込む</button>
+        </form>
         <ul id="history-list" class="history"></ul>
         <p id="history-empty" class="hint" hidden>質問履歴はありません。</p>
         <div id="history-detail" hidden>

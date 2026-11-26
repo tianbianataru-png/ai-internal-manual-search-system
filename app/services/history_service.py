@@ -28,13 +28,28 @@ def _load_sources(raw: str) -> list[dict]:
     return data if isinstance(data, list) else []
 
 
-def list_history(user_id: int, limit: int = 50, offset: int = 0) -> list[dict]:
-    """新しい順。"""
+def list_history(user_id: int, limit: int = 50, offset: int = 0,
+                 keyword: str | None = None, rating: str | None = None) -> list[dict]:
+    """新しい順。keyword は質問・回答の部分一致、rating は good / bad / none(未評価)で絞り込む。"""
+    where, params = ["user_id = ?"], [user_id]
+    keyword = (keyword or "").strip()
+    if keyword:
+        esc = keyword.replace("!", "!!").replace("%", "!%").replace("_", "!_")  # LIKEのワイルドカードを文字として扱う
+        where.append("(question LIKE ? ESCAPE '!' OR answer LIKE ? ESCAPE '!')")
+        params += [f"%{esc}%", f"%{esc}%"]
+    if rating:
+        if rating == "none":
+            where.append("rating IS NULL")
+        elif rating in RATINGS:
+            where.append("rating = ?")
+            params.append(RATINGS[rating])
+        else:
+            raise HistoryError("評価の指定が正しくありません。", 400)
     with get_connection() as conn:
         rows = conn.execute(
             "SELECT id, question, answer, sources, rating, created_at FROM chat_history "
-            "WHERE user_id = ? ORDER BY id DESC LIMIT ? OFFSET ?",
-            (user_id, limit, offset),
+            f"WHERE {' AND '.join(where)} ORDER BY id DESC LIMIT ? OFFSET ?",
+            (*params, limit, offset),
         ).fetchall()
     return [
         {

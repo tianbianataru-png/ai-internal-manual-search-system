@@ -350,13 +350,18 @@ $("upload-form").addEventListener("submit", async (e) => {
 });
 
 // ---- 履歴 ----
+$("history-filter").addEventListener("submit", (e) => { e.preventDefault(); clearMessage(); loadHistory(); });
 async function loadHistory() {
   $("history-detail").hidden = true;
   try {
-    const list = await api("/api/history");
+    const params = new URLSearchParams();
+    if ($("history-q").value.trim()) params.set("q", $("history-q").value.trim());
+    if ($("history-rating").value) params.set("rating", $("history-rating").value);
+    const list = await api("/api/history" + (params.toString() ? `?${params}` : ""));
     const ul = $("history-list");
     ul.replaceChildren();
     $("history-empty").hidden = list.length > 0;
+    $("history-empty").textContent = params.toString() ? "条件に合う履歴はありません。" : "質問履歴はありません。";
     for (const h of list) {
       const li = el("li");
       const main = el("div", "h-main");
