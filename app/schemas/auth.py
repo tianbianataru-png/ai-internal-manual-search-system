@@ -11,6 +11,8 @@ class UserOut(BaseModel):
     username: str
     role: str  # admin / user
     created_at: str
+    disabled: bool = False  # 管理者が停止中
+    locked: bool = False  # ログイン失敗でロック中
 
 
 class UserCreate(BaseModel):
@@ -26,3 +28,7 @@ class ChangePasswordIn(BaseModel):
 
 class PasswordIn(BaseModel):
     password: str
+
+
+class DisabledIn(BaseModel):
+    disabled: bool

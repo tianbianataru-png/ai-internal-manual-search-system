@@ -16,6 +16,9 @@ MAX_PASSWORD_LEN = 128
 MAX_FAILURES = 5
 WINDOW = 300
 _failures: dict[str, list[float]] = {}
+# 登録済みユーザーは、連続でLOCK_AFTER回失敗するとLOCK_SECONDS秒ロックする(DBに記録。再起動しても残る。管理者が解除できる)
+LOCK_AFTER = MAX_FAILURES
+LOCK_SECONDS = 900
 
 
 class AuthError(Exception):
@@ -51,7 +54,11 @@ def _check_password_rule(password: str) -> None:
 
 
 def _public(row: sqlite3.Row) -> dict:
-    return {"id": row["id"], "username": row["username"], "role": row["role"], "created_at": row["created_at"]}
+    return {
+        "id": row["id"], "username": row["username"], "role": row["role"], "created_at": row["created_at"],
+        "disabled": bool(row["disabled"]),
+        "locked": bool(row["locked_until"] and row["locked_until"] > time.time()),
+    }
 
 
 # ---- ユーザー管理 ----
@@ -102,6 +109,27 @@ def set_password(user_id: int, password: str) -> None:
         if cur.rowcount == 0:
             raise AuthError("ユーザーが見つかりません。", 404)
         conn.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
+        conn.execute("UPDATE users SET failed_count=0, locked_until=NULL WHERE id=?", (user_id,))  # ロックも解除
+
+
+def set_disabled(user_id: int, disabled: bool, acting_user_id: int) -> None:
+    """ユーザーの停止/再開。停止するとログイン中の端末もすべてログアウトされる。自分自身は停止できない。"""
+    if disabled and user_id == acting_user_id:
+        raise AuthError("自分自身は停止できません。")
+    with get_connection() as conn:
+        cur = conn.execute("UPDATE users SET disabled=? WHERE id=?", (1 if disabled else 0, user_id))
+        if cur.rowcount == 0:
+            raise AuthError("ユーザーが見つかりません。", 404)
+        if disabled:
+            conn.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
+
+
+def unlock(user_id: int) -> None:
+    """ログイン失敗によるロックを解除する。"""
+    with get_connection() as conn:
+        cur = conn.execute("UPDATE users SET failed_count=0, locked_until=NULL WHERE id=?", (user_id,))
+        if cur.rowcount == 0:
+            raise AuthError("ユーザーが見つかりません。", 404)
 
 
 # ---- ログイン / セッション ----
@@ -145,24 +173,48 @@ def change_own_password(user_id: int, current: str, new: str) -> str:
         return _new_session(conn, user_id)
 
 
+class AccountLocked(AuthError):
+    """今回の失敗でアカウントがロックされた(利用者には通常の失敗と同じ応答を返し、操作ログに残す)。"""
+
+
 def login(username: str, password: str) -> tuple[str, dict]:
-    """成功すると (セッショントークン, ユーザー) を返す。"""
+    """成功すると (セッショントークン, ユーザー) を返す。
+
+    登録済みユーザーは、連続失敗でDB上のロック(locked_until)がかかる。ロック中は正しいパスワードでも入れない。
+    存在しないユーザー名は、メモリ上の回数制限(_failures)で同じように防ぐ。"""
     key = (username or "").strip().lower()
     now = time.time()
-    recent = [t for t in _failures.get(key, []) if now - t < WINDOW]
-    if len(recent) >= MAX_FAILURES:
-        _failures[key] = recent
-        raise AuthError("ログインの失敗が続いたため、しばらくしてからお試しください。", 429)
-
     with get_connection() as conn:
         row = conn.execute("SELECT * FROM users WHERE username=?", (key,)).fetchone()
-    ok = verify_password(password or "", row["password_hash"] if row else _DUMMY_HASH)
-    if row is None or not ok:
+
+    if row is None:
+        recent = [t for t in _failures.get(key, []) if now - t < WINDOW]
+        if len(recent) >= MAX_FAILURES:
+            _failures[key] = recent
+            raise AuthError("ログインの失敗が続いたため、しばらくしてからお試しください。", 429)
+        verify_password(password or "", _DUMMY_HASH)
         _failures[key] = recent + [now]
         raise AuthError("ユーザー名またはパスワードが違います。", 401)
-    _failures.pop(key, None)
 
+    if row["locked_until"] and row["locked_until"] > now:
+        raise AuthError("ログインの失敗が続いたためロックされています。しばらくしてからお試しいただくか、管理者に解除を依頼してください。", 429)
+
+    if not verify_password(password or "", row["password_hash"]):
+        count = row["failed_count"] + 1
+        with get_connection() as conn:
+            if count >= LOCK_AFTER:
+                conn.execute("UPDATE users SET failed_count=0, locked_until=? WHERE id=?",
+                             (int(now) + LOCK_SECONDS, row["id"]))
+            else:
+                conn.execute("UPDATE users SET failed_count=? WHERE id=?", (count, row["id"]))
+        if count >= LOCK_AFTER:
+            raise AccountLocked("ユーザー名またはパスワードが違います。", 401)
+        raise AuthError("ユーザー名またはパスワードが違います。", 401)
+
+    if row["disabled"]:  # パスワードが合っている場合だけ停止を知らせる(ユーザーの存在を推測させないため)
+        raise AuthError("このアカウントは停止されています。管理者に連絡してください。", 403)
     with get_connection() as conn:
+        conn.execute("UPDATE users SET failed_count=0, locked_until=NULL WHERE id=?", (row["id"],))
         token = _new_session(conn, row["id"])
     return token, _public(row)
 
@@ -173,7 +225,7 @@ def get_user_by_token(token: str | None) -> dict | None:
     with get_connection() as conn:
         row = conn.execute(
             "SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id "
-            "WHERE s.token_hash=? AND s.expires_at >= ?",
+            "WHERE s.token_hash=? AND s.expires_at >= ? AND u.disabled = 0",
             (_token_hash(token), int(time.time())),
         ).fetchone()
     return _public(row) if row else None

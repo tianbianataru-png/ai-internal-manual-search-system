@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 # 記録する操作の種類
 ACTIONS = (
     "login", "login_failed", "logout", "password_change",
-    "user_create", "password_reset", "user_delete",
+    "user_create", "password_reset", "user_delete", "account_locked", "user_unlock", "user_disable", "user_enable",
     "manual_upload", "manual_update", "manual_delete", "manual_category",
 )
 MAX_DETAIL = 200

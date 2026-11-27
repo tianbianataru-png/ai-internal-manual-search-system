@@ -27,6 +27,9 @@ def login(body: LoginIn, request: Request, response: Response):
         token, user = auth_service.login(body.username, body.password)
     except AuthError as e:
         audit_service.record("login_failed", request, username=body.username.strip(), detail=str(e))
+        if isinstance(e, auth_service.AccountLocked):
+            audit_service.record("account_locked", request, username=body.username.strip(),
+                                 detail=f"連続{auth_service.LOCK_AFTER}回失敗したため{auth_service.LOCK_SECONDS // 60}分ロック")
         raise HTTPException(status_code=e.status_code, detail=str(e))
     audit_service.record("login", request, user=user)
     _set_session_cookie(response, token)

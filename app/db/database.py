@@ -11,7 +11,10 @@ CREATE TABLE IF NOT EXISTS users (
     username      TEXT NOT NULL UNIQUE COLLATE NOCASE,
     password_hash TEXT NOT NULL,
     role          TEXT NOT NULL DEFAULT 'user',  -- admin / user
-    created_at    TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    created_at    TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    disabled      INTEGER NOT NULL DEFAULT 0,    -- 1=管理者が停止中(ログイン不可)
+    failed_count  INTEGER NOT NULL DEFAULT 0,    -- 連続したログイン失敗の回数
+    locked_until  INTEGER                        -- 失敗が続いたときの自動ロックの解除時刻(UNIX秒)
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -87,6 +90,11 @@ def init_db() -> None:
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(chat_history)")]
         if "rating" not in cols:
             conn.execute("ALTER TABLE chat_history ADD COLUMN rating INTEGER")
+        cols = [r["name"] for r in conn.execute("PRAGMA table_info(users)")]
+        for name, ddl in (("disabled", "INTEGER NOT NULL DEFAULT 0"), ("failed_count", "INTEGER NOT NULL DEFAULT 0"),
+                          ("locked_until", "INTEGER")):
+            if name not in cols:
+                conn.execute(f"ALTER TABLE users ADD COLUMN {name} {ddl}")
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(manuals)")]
         if "updated_at" not in cols:
             conn.execute("ALTER TABLE manuals ADD COLUMN updated_at TEXT")

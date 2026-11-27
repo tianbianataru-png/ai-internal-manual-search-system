@@ -534,6 +534,7 @@ const AUDIT_LABELS = {
   login: "ログイン", login_failed: "ログイン失敗", logout: "ログアウト", password_change: "パスワード変更(本人)",
   user_create: "ユーザー追加", password_reset: "パスワードリセット(管理者)", user_delete: "ユーザー削除",
   manual_upload: "マニュアル登録", manual_update: "マニュアル更新", manual_delete: "マニュアル削除", manual_category: "マニュアル分類変更",
+  account_locked: "アカウントのロック(失敗の連続)", user_unlock: "ロック解除(管理者)", user_disable: "ユーザー停止", user_enable: "ユーザー再開",
 };
 const AUDIT_PAGE = 100;
 let auditOffset = 0;
@@ -579,7 +580,8 @@ async function loadUsers() {
     tbody.replaceChildren();
     for (const u of list) {
       const tr = el("tr");
-      tr.append(el("td", "", u.username), el("td", "", u.role === "admin" ? "管理者" : "一般"), el("td", "", u.created_at));
+      tr.append(el("td", "", u.username), el("td", "", u.role === "admin" ? "管理者" : "一般"), el("td", "", u.created_at),
+        el("td", u.disabled || u.locked ? "audit-failed" : "", u.disabled ? "停止中" : u.locked ? "ロック中" : "正常"));
       const td = el("td");
       const pw = el("button", "danger plain", "パスワード変更");
       pw.addEventListener("click", async () => {
@@ -595,7 +597,28 @@ async function loadUsers() {
         } catch (err) { showMessage(err.message, true); }
       });
       td.append(pw, " ");
+      if (u.locked) {
+        const un = el("button", "danger plain", "ロック解除");
+        un.addEventListener("click", async () => {
+          try { await api(`/api/users/${u.id}/unlock`, { method: "POST" }); loadUsers(); }
+          catch (err) { showMessage(err.message, true); }
+        });
+        td.append(un, " ");
+      }
       if (u.id !== currentUser.id) {
+        const tog = el("button", "danger plain", u.disabled ? "再開" : "停止");
+        tog.addEventListener("click", async () => {
+          if (!u.disabled && !confirm(`「${u.username}」を停止しますか?ログイン中の端末もログアウトされます。`)) return;
+          try {
+            await api(`/api/users/${u.id}/disabled`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ disabled: !u.disabled }),
+            });
+            loadUsers();
+          } catch (err) { showMessage(err.message, true); }
+        });
+        td.append(tog, " ");
         const del = el("button", "danger", "削除");
         del.addEventListener("click", async () => {
           if (!confirm(`「${u.username}」と、その質問履歴を削除しますか?`)) return;

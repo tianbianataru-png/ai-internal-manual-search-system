@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.api.deps import require_admin
-from app.schemas.auth import PasswordIn, UserCreate, UserOut
+from app.schemas.auth import DisabledIn, PasswordIn, UserCreate, UserOut
 from app.services import audit_service, auth_service
 from app.services.auth_service import AuthError
 
@@ -51,3 +51,25 @@ def delete_user(user_id: int, request: Request, admin: dict = Depends(require_ad
     except AuthError as e:
         raise _http(e)
     audit_service.record("user_delete", request, user=admin, detail=name)
+
+
+@router.put("/{user_id}/disabled", status_code=204)
+def set_disabled(user_id: int, body: DisabledIn, request: Request, admin: dict = Depends(require_admin)):
+    """ユーザーの停止/再開。停止中はログインできず、ログイン中の端末もログアウトされる。"""
+    name = _name_of(user_id)
+    try:
+        auth_service.set_disabled(user_id, body.disabled, admin["id"])
+    except AuthError as e:
+        raise _http(e)
+    audit_service.record("user_disable" if body.disabled else "user_enable", request, user=admin, detail=name)
+
+
+@router.post("/{user_id}/unlock", status_code=204)
+def unlock_user(user_id: int, request: Request, admin: dict = Depends(require_admin)):
+    """ログイン失敗によるロックを解除する。"""
+    name = _name_of(user_id)
+    try:
+        auth_service.unlock(user_id)
+    except AuthError as e:
+        raise _http(e)
+    audit_service.record("user_unlock", request, user=admin, detail=name)

@@ -211,3 +211,75 @@ def test_admin_reset_own_password_logs_out_admin(env):
     assert admin.put(f"/api/users/{me['id']}/password", json={"password": "new-password-1"}).status_code == 204
     assert admin.get("/api/auth/me").status_code == 401  # 自分のセッションも無効になる
     assert TestClient(app).post("/api/auth/login", json={"username": "admin", "password": "new-password-1"}).status_code == 200
+
+
+def _fail(c, name, n):
+    for _ in range(n):
+        c.post("/api/auth/login", json={"username": name, "password": "bad-password"})
+
+
+def test_account_locked_persists_and_admin_can_unlock(env):
+    admin = make_client("admin", "admin")
+    auth_service.create_user("taro", PASSWORD)
+    c = TestClient(app)
+    _fail(c, "taro", auth_service.LOCK_AFTER)
+    assert c.post("/api/auth/login", json={"username": "taro", "password": PASSWORD}).status_code == 429
+    auth_service._failures.clear()  # メモリを消してもロックはDBに残る
+    assert c.post("/api/auth/login", json={"username": "taro", "password": PASSWORD}).status_code == 429
+    taro = next(u for u in admin.get("/api/users").json() if u["username"] == "taro")
+    assert taro["locked"] is True and taro["disabled"] is False
+    actions = [x["action"] for x in admin.get("/api/audit").json()]
+    assert "account_locked" in actions
+
+    assert admin.post(f"/api/users/{taro['id']}/unlock").status_code == 204
+    assert c.post("/api/auth/login", json={"username": "taro", "password": PASSWORD}).status_code == 200
+    assert "user_unlock" in [x["action"] for x in admin.get("/api/audit").json()]
+
+
+def test_lock_expires_and_success_resets_count(env):
+    auth_service.create_user("taro", PASSWORD)
+    c = TestClient(app)
+    _fail(c, "taro", auth_service.LOCK_AFTER - 1)
+    assert c.post("/api/auth/login", json={"username": "taro", "password": PASSWORD}).status_code == 200
+    _fail(c, "taro", auth_service.LOCK_AFTER - 1)  # 成功で数え直されるので、まだロックされない
+    assert c.post("/api/auth/login", json={"username": "taro", "password": PASSWORD}).status_code == 200
+    _fail(c, "taro", auth_service.LOCK_AFTER)
+    with database.get_connection() as conn:
+        conn.execute("UPDATE users SET locked_until = 1")  # 期限切れ
+    assert c.post("/api/auth/login", json={"username": "taro", "password": PASSWORD}).status_code == 200
+
+
+def test_disable_blocks_login_and_logs_out(env):
+    admin = make_client("admin", "admin")
+    taro = make_client("taro", "user")
+    uid = next(u["id"] for u in admin.get("/api/users").json() if u["username"] == "taro")
+    assert admin.put(f"/api/users/{uid}/disabled", json={"disabled": True}).status_code == 204
+    assert taro.get("/api/auth/me").status_code == 401  # ログイン中も切れる
+    r = TestClient(app).post("/api/auth/login", json={"username": "taro", "password": PASSWORD})
+    assert r.status_code == 403 and "停止" in r.json()["detail"]
+    bad = TestClient(app).post("/api/auth/login", json={"username": "taro", "password": "bad-password"})
+    assert bad.status_code == 401  # パスワードが違うときは停止を教えない
+    assert admin.get("/api/users").json()[1]["disabled"] is True
+    assert admin.put(f"/api/users/{uid}/disabled", json={"disabled": False}).status_code == 204
+    assert TestClient(app).post("/api/auth/login", json={"username": "taro", "password": PASSWORD}).status_code == 200
+
+
+def test_cannot_disable_self_and_non_admin_forbidden(env):
+    admin = make_client("admin", "admin")
+    taro = make_client("taro", "user")
+    me = admin.get("/api/auth/me").json()["id"]
+    assert admin.put(f"/api/users/{me}/disabled", json={"disabled": True}).status_code == 400
+    assert taro.put(f"/api/users/{me}/disabled", json={"disabled": True}).status_code == 403
+    assert taro.post(f"/api/users/{me}/unlock").status_code == 403
+    assert admin.put("/api/users/9999/disabled", json={"disabled": True}).status_code == 404
+    assert admin.post("/api/users/9999/unlock").status_code == 404
+
+
+def test_password_reset_clears_lock(env):
+    admin = make_client("admin", "admin")
+    auth_service.create_user("taro", PASSWORD)
+    c = TestClient(app)
+    _fail(c, "taro", auth_service.LOCK_AFTER)
+    uid = next(u["id"] for u in admin.get("/api/users").json() if u["username"] == "taro")
+    admin.put(f"/api/users/{uid}/password", json={"password": "new-password-1"})
+    assert c.post("/api/auth/login", json={"username": "taro", "password": "new-password-1"}).status_code == 200
