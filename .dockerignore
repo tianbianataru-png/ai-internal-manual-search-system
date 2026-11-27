@@ -1,0 +1,17 @@
+# イメージに入れないもの(特に .env と data は秘密・個人データなので絶対に入れない)
+.env
+.env.*
+!.env.example
+data/
+.git/
+.gitignore
+.claude/
+.venv/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+tests/
+docs/
+README.md
+.vscode/
+.idea/

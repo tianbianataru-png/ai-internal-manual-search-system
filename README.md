@@ -44,6 +44,18 @@ uvicorn app.main:app --reload --port 8001
 ブラウザで http://127.0.0.1:8001/health を開き、`"status":"ok"` が出れば成功です。
 画面は http://127.0.0.1:8001/ から使えます。
 
+## Docker・社内サーバーでの公開
+
+`Dockerfile` と `docker-compose.yml` を用意しています。
+
+```bash
+cp .env.example .env   # OPENAI_API_KEY などを設定
+docker compose up -d --build
+docker compose run --rm app python -m app.create_admin
+```
+
+HTTPS での公開(リバースプロキシ)・更新・バックアップ・復元・公開前のチェックリストは [docs/deploy.md](docs/deploy.md) を見てください。
+
 ## バックアップからの復元
 
 サーバーを止めてから、仮想環境を有効にして実行します。
@@ -62,7 +74,7 @@ pytest
 
 ## 注意
 - `.env` と `data/` は Git に含めません(秘密情報・個人データのため)。
-- HTTPS で公開する場合は `.env` の `COOKIE_SECURE=true` を設定してください。
+- HTTPS で公開する場合は `.env` の `COOKIE_SECURE=true` を設定してください(Dockerでの公開手順は docs/deploy.md)。
 
 ## 使い方
 1. `.env` に `OPENAI_API_KEY` を設定して起動します。
@@ -159,3 +171,4 @@ pytest
 - [x] ステップ29: マニュアルの利用状況(管理者向け)
 - [x] ステップ30: ログインのロック・ユーザーの停止
 - [x] ステップ31: バックアップ・復元
+- [x] ステップ32: Docker化・本番公開の準備

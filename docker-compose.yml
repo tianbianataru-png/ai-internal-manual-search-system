@@ -1,0 +1,24 @@
+# 起動: docker compose up -d --build
+# 設定は .env に書く(.env.example をコピー)。データは名前付きボリューム app_data に保存される。
+services:
+  app:
+    build: .
+    image: manual-search:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # コンテナ内の保存先は固定(.env の値より優先)
+      DATA_DIR: /app/data
+      SQLITE_PATH: /app/data/app.db
+      CHROMA_DIR: /app/data/chroma
+      UPLOAD_DIR: /app/data/uploads
+      # HTTPSのリバースプロキシ(docs/deploy.md)の後ろで使う前提。公開するときは .env で COOKIE_SECURE=true にする
+      FORWARDED_ALLOW_IPS: "*"
+    volumes:
+      - app_data:/app/data
+    ports:
+      # このパソコン(サーバー)の中からだけ接続できる。外部へはリバースプロキシ経由で公開する
+      - "127.0.0.1:8001:8001"
+
+volumes:
+  app_data:
