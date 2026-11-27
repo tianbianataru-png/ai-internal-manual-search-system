@@ -144,6 +144,7 @@ function showApp(user) {
   document.querySelector('.tab[data-tab="ask"]').click(); // 最初の画面に戻す
   $("ask-result").hidden = true;
   $("question").value = "";
+  resetConversation();
 }
 
 $("login-form").addEventListener("submit", async (e) => {
@@ -196,6 +197,23 @@ async function readSSE(res, onEvent) {
 }
 
 // ---- 質問 ----
+// 会話の続き: 直前までの履歴ID(最大3件)をサーバーに送り、指示語(「それは?」など)を補ってもらう
+const MAX_TURNS = 3;
+let conversation = [];
+function renderConversation() {
+  $("conv-note").hidden = conversation.length === 0;
+  $("conv-text").textContent = `会話の続きとして質問します(直前の${conversation.length}件のやり取りを踏まえます)。`;
+}
+function resetConversation() {
+  conversation = [];
+  renderConversation();
+}
+$("conv-reset").addEventListener("click", () => {
+  resetConversation();
+  $("ask-result").hidden = true;
+  $("question").value = "";
+  $("question").focus();
+});
 $("ask-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   clearMessage();
@@ -210,6 +228,7 @@ $("ask-form").addEventListener("submit", async (e) => {
         question: $("question").value,
         manual_id: $("scope").value ? Number($("scope").value) : null,
         category: $("scope-category").value || null,
+        previous_ids: conversation,
       }),
     });
     if (res.status === 401) {
@@ -234,6 +253,9 @@ $("ask-form").addEventListener("submit", async (e) => {
         $("answer").textContent = data.answer; // 最終的な回答で置き換える
         renderSources($("sources"), data.sources);
         renderRating($("ask-rating"), data.id, null);
+        conversation = [...conversation, data.id].slice(-MAX_TURNS);
+        renderConversation();
+        $("question").value = ""; // 続けて質問しやすいように空にする
       } else if (event === "error") {
         throw new Error(data.detail || "回答の生成に失敗しました。");
       }

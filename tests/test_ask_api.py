@@ -26,7 +26,7 @@ def client(tmp_path, monkeypatch):
 def _fake_llm(monkeypatch, answer):
     calls = []
 
-    def fake(question, hits, client=None):
+    def fake(question, hits, client=None, history=None):
         calls.append((question, hits))
         return answer
 
@@ -93,7 +93,7 @@ def test_validation(client):
 def test_chat_failure_returns_502(client, monkeypatch):
     _add_manual_chunk()
 
-    def boom(question, hits, client=None):
+    def boom(question, hits, client=None, history=None):
         raise qa_service.ChatError("失敗")
 
     monkeypatch.setattr(qa_service, "_generate_answer", boom)
@@ -192,7 +192,7 @@ def _parse_sse(text):
 
 
 def _fake_stream(monkeypatch, pieces):
-    monkeypatch.setattr(qa_service, "_generate_answer_stream", lambda q, h, client=None: iter(pieces))
+    monkeypatch.setattr(qa_service, "_generate_answer_stream", lambda q, h, client=None, history=None: iter(pieces))
 
 
 def test_stream_sends_deltas_then_done_and_saves_history(client, monkeypatch):
@@ -224,7 +224,7 @@ def test_stream_validation_error_is_400(client):
 def test_stream_llm_failure_midway_sends_error_event(client, monkeypatch):
     _add_manual_chunk()
 
-    def boom(q, h, client=None):
+    def boom(q, h, client=None, history=None):
         yield "途中"
         raise qa_service.ChatError("失敗しました")
 
@@ -233,3 +233,47 @@ def test_stream_llm_failure_midway_sends_error_event(client, monkeypatch):
     assert [e for e, _ in events] == ["delta", "error"]
     with database.get_connection() as c:
         assert c.execute("SELECT COUNT(*) FROM chat_history").fetchone()[0] == 0
+
+
+def _capture_messages(monkeypatch):
+    seen = {}
+
+    def create(model, messages, **kw):
+        seen["messages"] = messages
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="答え[1]"))])
+
+    fake = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(qa_service, "OpenAI", lambda api_key=None: fake)
+    monkeypatch.setattr(get_settings(), "openai_api_key", "dummy")
+    return seen
+
+
+def test_follow_up_includes_previous_turn_and_searches_with_it(client, monkeypatch):
+    _add_manual_chunk()
+    searched = []
+    monkeypatch.setattr(qa_service, "embed_query", lambda q: searched.append(q) or [1.0, 0.0])
+    seen = _capture_messages(monkeypatch)
+    first = client.post("/api/ask", json={"question": "有給はいつから?"}).json()
+    r = client.post("/api/ask", json={"question": "それはいつまで?", "previous_ids": [first["id"]]})
+    assert r.status_code == 200
+    assert "有給はいつから?" in searched[-1] and "それはいつまで?" in searched[-1]
+    roles = [m["role"] for m in seen["messages"]]
+    assert roles == ["system", "user", "assistant", "user"]
+    assert seen["messages"][1]["content"] == "有給はいつから?"
+    assert "質問: それはいつまで?" in seen["messages"][3]["content"]
+
+
+def test_follow_up_ignores_other_users_history(client, monkeypatch):
+    _add_manual_chunk()
+    seen = _capture_messages(monkeypatch)
+    other = make_client("hanako", "user")
+    secret = other.post("/api/ask", json={"question": "他人の秘密の質問"}).json()
+    r = client.post("/api/ask", json={"question": "続きです", "previous_ids": [secret["id"], 9999]})
+    assert r.status_code == 200
+    assert [m["role"] for m in seen["messages"]] == ["system", "user"]
+    assert "他人の秘密の質問" not in str(seen["messages"])
+
+
+def test_previous_ids_limited_to_three(client):
+    r = client.post("/api/ask", json={"question": "x", "previous_ids": [1, 2, 3, 4]})
+    assert r.status_code == 422

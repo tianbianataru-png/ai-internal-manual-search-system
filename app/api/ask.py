@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/ask", tags=["ask"])
 def ask(body: AskIn, user: dict = Depends(get_current_user)):
     """質問に対して、登録済みマニュアルだけを根拠に回答し、出典を返す。"""
     try:
-        return qa_service.ask(body.question, user["id"], body.manual_id, body.category)
+        return qa_service.ask(body.question, user["id"], body.manual_id, body.category, body.previous_ids)
     except qa_service.QuestionError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except (EmbeddingError, qa_service.ChatError) as e:
@@ -31,7 +31,7 @@ def ask_stream(body: AskIn, user: dict = Depends(get_current_user)):
     """回答を少しずつ送る版(Server-Sent Events)。
     event: delta(回答の断片)→ event: done(最終結果。/api/ask と同じ形)。失敗時は event: error。"""
     # 質問の不正は、ストリーム開始前に通常のエラーとして返す
-    gen = qa_service.ask_stream(body.question, user["id"], body.manual_id, body.category)
+    gen = qa_service.ask_stream(body.question, user["id"], body.manual_id, body.category, body.previous_ids)
     try:
         first = next(gen)
     except qa_service.QuestionError as e:

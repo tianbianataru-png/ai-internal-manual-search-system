@@ -44,6 +44,10 @@
           <label class="scope">検索対象: <select id="scope"><option value="">すべてのマニュアル</option></select></label>
           <button type="submit" id="ask-btn">質問する</button>
         </form>
+        <p id="conv-note" class="hint" hidden>
+          <span id="conv-text"></span>
+          <button type="button" id="conv-reset">新しい会話を始める</button>
+        </p>
         <div id="ask-result" hidden>
           <h2>回答</h2>
           <div id="answer" class="answer"></div>
