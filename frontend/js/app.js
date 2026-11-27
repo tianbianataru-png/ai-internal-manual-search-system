@@ -534,13 +534,16 @@ const AUDIT_LABELS = {
   login: "ログイン", login_failed: "ログイン失敗", logout: "ログアウト", password_change: "パスワード変更(本人)",
   user_create: "ユーザー追加", password_reset: "パスワードリセット(管理者)", user_delete: "ユーザー削除",
   manual_upload: "マニュアル登録", manual_update: "マニュアル更新", manual_delete: "マニュアル削除", manual_category: "マニュアル分類変更",
-  account_locked: "アカウントのロック(失敗の連続)", user_unlock: "ロック解除(管理者)", user_disable: "ユーザー停止", user_enable: "ユーザー再開",
+  account_locked: "アカウントのロック(失敗の連続)", user_unlock: "ロック解除(管理者)", user_disable: "ユーザー停止", user_enable: "ユーザー再開", backup: "バックアップの作成",
 };
 const AUDIT_PAGE = 100;
 let auditOffset = 0;
 
 for (const [value, label] of Object.entries(AUDIT_LABELS)) $("audit-action").append(new Option(label, value));
 $("audit-action").addEventListener("change", () => loadAudit(true));
+$("backup-download").addEventListener("click", () => {
+  window.location.href = "/api/backup/download";
+});
 $("audit-csv").addEventListener("click", () => {
   const action = $("audit-action").value;
   window.location.href = "/api/audit/export.csv" + (action ? `?action=${encodeURIComponent(action)}` : ""); // 現在の絞り込みで出力

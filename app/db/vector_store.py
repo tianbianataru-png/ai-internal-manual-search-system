@@ -23,6 +23,24 @@ def get_client() -> ClientAPI:
     return _client
 
 
+def close_client() -> None:
+    """ChromaDBの接続を閉じる(フォルダの移動・置き換えの前に呼ぶ。Windowsは開いたままだと移動できない)。"""
+    global _client
+    if _client is not None:
+        try:
+            _client._system.stop()
+        except Exception:  # noqa: BLE001
+            pass
+        _client = None
+    try:
+        from chromadb.api.shared_system_client import SharedSystemClient
+        SharedSystemClient.clear_system_cache()
+    except Exception:  # noqa: BLE001
+        pass
+    import gc
+    gc.collect()
+
+
 def get_collection() -> Collection:
     # cosine 距離を使う(文章の意味の近さを測るのに一般的)
     return get_client().get_or_create_collection(

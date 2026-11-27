@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.ask import router as ask_router
 from app.api.audit import router as audit_router
 from app.api.auth import router as auth_router
+from app.api.backup import router as backup_router
 from app.api.feedback import router as feedback_router
 from app.api.history import router as history_router
 from app.api.manuals import router as manuals_router
@@ -34,6 +35,7 @@ app.include_router(ask_router)
 app.include_router(history_router)
 app.include_router(feedback_router)
 app.include_router(audit_router)
+app.include_router(backup_router)
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
 

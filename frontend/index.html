@@ -30,6 +30,7 @@
         <button class="tab admin-only" data-tab="users" hidden>ユーザー管理</button>
         <button class="tab admin-only" data-tab="feedback" hidden>回答の評価</button>
         <button class="tab admin-only" data-tab="audit" hidden>操作ログ</button>
+        <button class="tab admin-only" data-tab="backup" hidden>バックアップ</button>
         <button class="tab" data-tab="account">パスワード変更</button>
       </nav>
     </header>
@@ -138,6 +139,12 @@
         <h3 id="fb-un-title">回答できなかった質問(資料が見つからなかったもの・新しい順)</h3>
         <ul id="fb-un" class="history"></ul>
         <p id="fb-un-empty" class="hint" hidden>回答できなかった質問はありません。</p>
+      </section>
+
+      <section id="tab-backup" class="panel" hidden>
+        <p>ユーザー・質問履歴・登録マニュアル(元ファイルと検索データ)・操作ログを、1つのZIPファイルにまとめて保存します。</p>
+        <button type="button" id="backup-download">バックアップをダウンロード</button>
+        <p class="hint">ZIPにはパスワードのハッシュなどの秘密情報が含まれます。安全な場所に保管してください。復元はサーバーを止めて、コマンドで行います(READMEを参照)。</p>
       </section>
 
       <section id="tab-audit" class="panel" hidden>
