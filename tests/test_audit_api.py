@@ -114,3 +114,23 @@ def test_logging_failure_does_not_break_operation(env, monkeypatch):
     monkeypatch.setattr(audit_service, "get_connection", boom)
     r = admin.post("/api/users", json={"username": "taro", "password": PASSWORD})
     assert r.status_code == 201  # ログが書けなくても本来の操作は成功する
+
+
+def test_audit_csv_export(env):
+    admin = make_client("admin", "admin")
+    admin.post("/api/users", json={"username": "=cmd", "password": PASSWORD, "role": "user"})
+    r = admin.get("/api/audit/export.csv")
+    assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
+    assert r.text.startswith("\ufeff日時,操作,ユーザー")
+    assert "user_create" in r.text and "'=cmd" in r.text
+    only = admin.get("/api/audit/export.csv", params={"action": "login"}).text
+    assert "user_create" not in only
+    assert admin.get("/api/audit/export.csv", params={"action": "bogus"}).status_code == 400
+
+
+def test_audit_csv_admin_only(env):
+    admin = make_client("admin", "admin")
+    admin.post("/api/users", json={"username": "taro", "password": PASSWORD, "role": "user"})
+    user = TestClient(app)
+    user.post("/api/auth/login", json={"username": "taro", "password": PASSWORD})
+    assert user.get("/api/audit/export.csv").status_code == 403

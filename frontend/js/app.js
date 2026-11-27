@@ -475,6 +475,10 @@ let auditOffset = 0;
 
 for (const [value, label] of Object.entries(AUDIT_LABELS)) $("audit-action").append(new Option(label, value));
 $("audit-action").addEventListener("change", () => loadAudit(true));
+$("audit-csv").addEventListener("click", () => {
+  const action = $("audit-action").value;
+  window.location.href = "/api/audit/export.csv" + (action ? `?action=${encodeURIComponent(action)}` : ""); // 現在の絞り込みで出力
+});
 $("audit-more").addEventListener("click", () => loadAudit(false));
 
 async function loadAudit(reset) {

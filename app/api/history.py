@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
 from app.api.deps import get_current_user
+from app.core.csv_util import cell as _cell
 from app.schemas.history import HistoryDetail, HistorySummary, RatingIn
 from app.services import history_service
 from app.services.history_service import HistoryError
@@ -25,12 +26,6 @@ def list_history(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge
         return history_service.list_history(user["id"], limit, offset, q, rating)
     except HistoryError as e:
         raise _http(e)
-
-
-def _cell(v) -> str:
-    """CSVの数式インジェクション対策: 先頭が = + - @ などなら ' を付けて文字列として扱わせる。"""
-    v = "" if v is None else str(v)
-    return "'" + v if v[:1] in ("=", "+", "-", "@", "\t", "\r") else v
 
 
 @router.get("/export.csv")
