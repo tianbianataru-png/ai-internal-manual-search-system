@@ -62,3 +62,23 @@ class FeedbackSummary(BaseModel):
     unrated: int
     recent_bad: list[BadAnswer]
     by_manual: list[ManualFeedback]
+
+
+class DailyCount(BaseModel):
+    date: str
+    count: int
+
+
+class UserCount(BaseModel):
+    username: str
+    count: int
+
+
+class Usage(BaseModel):
+    total: int
+    last7: int
+    last30: int
+    active_users30: int
+    unanswered30: int
+    daily: list[DailyCount]  # 直近14日(古い順・0件の日も含む)
+    top_users: list[UserCount]  # 直近30日の質問が多い順(最大5人)

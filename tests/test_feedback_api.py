@@ -145,3 +145,23 @@ def test_unanswered_lists_not_found_questions_admin_only(env):
     assert body["total"] == 2
     assert [x["id"] for x in body["items"]] == [b, a]  # 新しい順
     assert body["items"][1]["username"] == "taro" and "answer" not in body["items"][0]
+
+
+def test_usage_counts_admin_only(env):
+    from app.services.qa_service import NOT_FOUND
+
+    admin = make_client("boss", "admin")
+    taro = make_client("taro", "user")
+    _insert(_uid(taro), "q1", "a")
+    _insert(_uid(taro), "q2", NOT_FOUND)
+    _insert(_uid(admin), "q3", "a")
+    with database.get_connection() as conn:  # 40日前の質問は直近30日に入らない
+        conn.execute(
+            "INSERT INTO chat_history(user_id, question, answer, created_at) "
+            "VALUES (?, 'old', 'a', datetime('now','localtime','-40 days'))", (_uid(taro),))
+    assert taro.get("/api/feedback/usage").status_code == 403
+    u = admin.get("/api/feedback/usage").json()
+    assert (u["total"], u["last7"], u["last30"]) == (4, 3, 3)
+    assert u["active_users30"] == 2 and u["unanswered30"] == 1
+    assert len(u["daily"]) == 14 and u["daily"][-1]["count"] == 3 and u["daily"][0]["count"] == 0
+    assert u["top_users"][0] == {"username": "taro", "count": 2}

@@ -145,6 +145,44 @@ def unanswered(limit: int = 50) -> dict:
     return {"total": total, "items": [dict(r) for r in rows]}
 
 
+def usage(days: int = 14) -> dict:
+    """管理者向けの利用状況。質問数(全体・直近7日/30日)、直近30日の利用者数・回答できなかった数、日別、質問の多いユーザー。"""
+    from app.services.qa_service import NOT_FOUND  # 循環import回避のため関数内で読み込む
+
+    with get_connection() as conn:
+        c = conn.execute(
+            "SELECT COUNT(*) AS total,"
+            " COALESCE(SUM(date(created_at) >= date('now','localtime','-6 days')), 0) AS last7,"
+            " COALESCE(SUM(date(created_at) >= date('now','localtime','-29 days')), 0) AS last30,"
+            " COUNT(DISTINCT CASE WHEN date(created_at) >= date('now','localtime','-29 days') THEN user_id END) AS users30,"
+            " COALESCE(SUM(answer = ? AND date(created_at) >= date('now','localtime','-29 days')), 0) AS un30"
+            " FROM chat_history",
+            (NOT_FOUND,),
+        ).fetchone()
+        per_day = {
+            r["d"]: r["n"]
+            for r in conn.execute(
+                "SELECT date(created_at) AS d, COUNT(*) AS n FROM chat_history "
+                "WHERE date(created_at) >= date('now','localtime',?) GROUP BY d",
+                (f"-{days - 1} days",),
+            )
+        }
+        top = conn.execute(
+            "SELECT u.username, COUNT(*) AS count FROM chat_history h JOIN users u ON u.id = h.user_id "
+            "WHERE date(h.created_at) >= date('now','localtime','-29 days') "
+            "GROUP BY h.user_id ORDER BY count DESC, u.username LIMIT 5"
+        ).fetchall()
+        dates = list(conn.execute(
+            "SELECT " + ",".join(f"date('now','localtime','-{i} days')" for i in range(days - 1, -1, -1))
+        ).fetchone())
+    return {
+        "total": c["total"], "last7": c["last7"], "last30": c["last30"],
+        "active_users30": c["users30"], "unanswered30": c["un30"],
+        "daily": [{"date": d, "count": per_day.get(d, 0)} for d in dates],
+        "top_users": [dict(r) for r in top],
+    }
+
+
 NO_SOURCE_LABEL = "(出典なし・資料が見つからなかった回答)"
 
 

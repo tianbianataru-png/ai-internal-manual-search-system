@@ -415,8 +415,34 @@ async function showHistory(id) {
 }
 
 // ---- 回答の評価の集計(管理者のみ) ----
+async function loadUsage() {
+  const u = await api("/api/feedback/usage");
+  const stats = $("us-stats");
+  stats.replaceChildren();
+  for (const [label, value] of [
+    ["質問の総数", u.total], ["直近7日の質問", u.last7], ["直近30日の質問", u.last30],
+    ["直近30日の利用者", u.active_users30], ["直近30日の回答不可", u.unanswered30],
+  ]) {
+    const box = el("div", "stat");
+    box.append(el("b", "", String(value)), el("span", "meta", label));
+    stats.append(box);
+  }
+  const tbody = $("us-daily");
+  tbody.replaceChildren();
+  for (const d of [...u.daily].reverse()) { // 新しい日が上
+    const tr = el("tr");
+    tr.append(el("td", "", d.date), el("td", "", String(d.count)));
+    tbody.append(tr);
+  }
+  const top = $("us-top");
+  top.replaceChildren();
+  for (const t of u.top_users) top.append(el("li", "", `${t.username}: ${t.count}件`));
+  if (!u.top_users.length) top.append(el("li", "meta", "まだ質問がありません。"));
+}
+
 async function loadFeedback() {
   try {
+    await loadUsage();
     const s = await api("/api/feedback/summary");
     const stats = $("fb-stats");
     stats.replaceChildren();
