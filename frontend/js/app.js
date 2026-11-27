@@ -462,9 +462,26 @@ async function loadUsage() {
   if (!u.top_users.length) top.append(el("li", "meta", "まだ質問がありません。"));
 }
 
+async function loadManualUsage() {
+  const rows = await api("/api/feedback/manual-usage");
+  const tbody = $("mu-list");
+  tbody.replaceChildren();
+  $("mu-empty").hidden = rows.length > 0;
+  for (const m of rows) {
+    const tr = el("tr");
+    tr.append(
+      el("td", "", m.manual_name), el("td", "", m.category || "未分類"),
+      el("td", m.total === 0 ? "audit-failed" : "", String(m.last30)), el("td", "", String(m.total)),
+      el("td", "", m.last_cited_at || "まだ使われていません"),
+    );
+    tbody.append(tr);
+  }
+}
+
 async function loadFeedback() {
   try {
     await loadUsage();
+    await loadManualUsage();
     const s = await api("/api/feedback/summary");
     const stats = $("fb-stats");
     stats.replaceChildren();

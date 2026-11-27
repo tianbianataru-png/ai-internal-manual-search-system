@@ -82,3 +82,12 @@ class Usage(BaseModel):
     unanswered30: int
     daily: list[DailyCount]  # 直近14日(古い順・0件の日も含む)
     top_users: list[UserCount]  # 直近30日の質問が多い順(最大5人)
+
+
+class ManualUsage(BaseModel):
+    manual_id: int
+    manual_name: str
+    category: str
+    total: int  # 出典にされた回答の数(累計)
+    last30: int  # 直近30日
+    last_cited_at: str | None  # 最後に出典にされた日時(一度もなければ None)

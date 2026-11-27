@@ -165,3 +165,34 @@ def test_usage_counts_admin_only(env):
     assert u["active_users30"] == 2 and u["unanswered30"] == 1
     assert len(u["daily"]) == 14 and u["daily"][-1]["count"] == 3 and u["daily"][0]["count"] == 0
     assert u["top_users"][0] == {"username": "taro", "count": 2}
+
+
+def test_manual_usage_counts_citations_admin_only(env):
+    import json
+
+    admin = make_client("boss", "admin")
+    taro = make_client("taro", "user")
+    with database.get_connection() as c:
+        for name, cat in (("a.pdf", "経理"), ("b.pdf", ""), ("unused.pdf", "人事")):
+            c.execute("INSERT INTO manuals(user_id, filename, stored_path, file_type, category) VALUES (1,?,?,?,?)",
+                      (name, name, "pdf", cat))
+        ids = {r["filename"]: r["id"] for r in c.execute("SELECT id, filename FROM manuals")}
+
+        def add(sources, when):
+            c.execute("INSERT INTO chat_history(user_id, question, answer, sources, created_at) VALUES (1,'q','a',?,?)",
+                      (json.dumps(sources), when))
+
+        s_a = {"manual_id": ids["a.pdf"], "manual_name": "a.pdf"}
+        add([s_a, s_a], "2099-01-01 10:00:00")  # 同じ回答で2回引用しても1回
+        add([s_a, {"manual_id": ids["b.pdf"], "manual_name": "b.pdf"}], "2099-01-02 10:00:00")
+        add([s_a], "2000-01-01 10:00:00")  # 古い(直近30日に入らない)
+        add([{"manual_id": 9999, "manual_name": "deleted.pdf"}], "2099-01-03 10:00:00")  # 削除済みは無視
+        add([], "2099-01-04 10:00:00")
+    assert taro.get("/api/feedback/manual-usage").status_code == 403
+    rows = {r["manual_name"]: r for r in admin.get("/api/feedback/manual-usage").json()}
+    assert set(rows) == {"a.pdf", "b.pdf", "unused.pdf"}
+    assert (rows["a.pdf"]["total"], rows["a.pdf"]["last_cited_at"]) == (3, "2099-01-02 10:00:00")
+    assert rows["a.pdf"]["category"] == "経理" and rows["b.pdf"]["total"] == 1
+    assert rows["unused.pdf"]["total"] == 0 and rows["unused.pdf"]["last_cited_at"] is None
+    order = [r["manual_name"] for r in admin.get("/api/feedback/manual-usage").json()]
+    assert order[0] == "unused.pdf"  # 使われていないものが先頭

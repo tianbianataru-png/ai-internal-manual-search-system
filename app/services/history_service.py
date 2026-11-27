@@ -183,6 +183,35 @@ def usage(days: int = 14) -> dict:
     }
 
 
+def manual_usage() -> list[dict]:
+    """管理者向け。登録中の全マニュアルが、回答の出典にされた回数(累計・直近30日・最後の日時)。
+    1つの回答が同じマニュアルを複数回引用していても1回と数える。使われていないマニュアルも0件で出し、
+    見直しの候補が分かるよう、直近30日の少ない順に並べる。"""
+    with get_connection() as conn:
+        manuals = conn.execute("SELECT id, filename, category FROM manuals").fetchall()
+        rows = conn.execute(
+            "SELECT sources, created_at, date(created_at) >= date('now','localtime','-29 days') AS recent "
+            "FROM chat_history WHERE sources != '[]'"
+        ).fetchall()
+    stats = {m["id"]: {"total": 0, "last30": 0, "last": None} for m in manuals}
+    for r in rows:
+        ids = {s.get("manual_id") for s in _load_sources(r["sources"]) if isinstance(s, dict)}
+        for mid in ids & stats.keys():
+            st = stats[mid]
+            st["total"] += 1
+            st["last30"] += 1 if r["recent"] else 0
+            if st["last"] is None or r["created_at"] > st["last"]:
+                st["last"] = r["created_at"]
+    result = [
+        {"manual_id": m["id"], "manual_name": m["filename"], "category": m["category"] or "",
+         "total": stats[m["id"]]["total"], "last30": stats[m["id"]]["last30"],
+         "last_cited_at": stats[m["id"]]["last"]}
+        for m in manuals
+    ]
+    result.sort(key=lambda x: (x["last30"], x["total"], x["manual_name"]))
+    return result
+
+
 NO_SOURCE_LABEL = "(出典なし・資料が見つからなかった回答)"
 
 

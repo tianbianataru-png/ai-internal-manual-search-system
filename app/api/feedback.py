@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends
 
 from app.api.deps import require_admin
-from app.schemas.history import FeedbackSummary, Unanswered, Usage
+from app.schemas.history import FeedbackSummary, ManualUsage, Unanswered, Usage
 from app.services import history_service
 
 router = APIRouter(prefix="/api/feedback", tags=["feedback"], dependencies=[Depends(require_admin)])
@@ -23,3 +23,9 @@ def unanswered():
 def usage():
     """利用状況(質問数・日別の推移・よく使う人)。"""
     return history_service.usage()
+
+
+@router.get("/manual-usage", response_model=list[ManualUsage])
+def manual_usage():
+    """マニュアルごとの利用状況(回答の出典にされた回数)。使われていないマニュアルの見直しに使う。"""
+    return history_service.manual_usage()
